@@ -48,7 +48,7 @@ fn load_args<'a>() -> clap::ArgMatches<'a> {
 			.about("collect and save data")
 		)
 		.subcommand(clap::SubCommand::with_name("dbsetup")
-			.about("collect and save data")
+			.about("delete old and create new tables")
 		)
 		.get_matches()
 }
