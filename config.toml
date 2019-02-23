@@ -1,0 +1,10 @@
+[db]
+host = "localhost"
+port = 5432
+user = "ffhl"
+password = "password"
+database = "ffhl"
+
+[sources]
+graph_url = "https://map.luebeck.freifunk.net/data/graph.json"
+nodes_url = "https://map.luebeck.freifunk.net/data/nodes.json"
