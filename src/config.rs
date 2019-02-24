@@ -45,7 +45,6 @@ impl Config {
 
 impl DbConfig {
 	pub fn connection_params(&self) -> ConnectParams {
-
 		ConnectParams::builder()
 			.user(&self.user, Some(&self.password))
 			.port(self.port)
