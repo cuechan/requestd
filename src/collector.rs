@@ -11,55 +11,49 @@ use influx_db_client::Value as Val;
 
 
 pub fn collect(config: &config::Config) -> Result<(), ()> {
+	let flux = influxdb::Client::new(
+		format!( "http://{}:{}", config.db.host, config.db.port),
+		config.db.database.clone()
+	);
+
 	let graphs: serde_json::Value = reqwest::get(&config.sources.graph_url).unwrap().json().unwrap();
-	let nodes: serde_json::Value = reqwest::get(&config.sources.nodes_url).unwrap().json().unwrap();
-
-
-
-	// "%Y-%m-%dT%H:%M:%S",
-
-	let time: NaiveDateTime = nodes.as_object()
-			.unwrap()
-			.get("timestamp")
-			.unwrap()
-			.as_str()
-			.unwrap()
-			.parse()
-			.unwrap();
-
-	let time_z = DateTime::<Utc>::from_utc(time, Utc);
+	let nodes: model::NodesData = reqwest::get(&config.sources.nodes_url).unwrap().json().unwrap();
+	let time_z = DateTime::<Utc>::from_utc(nodes.timestamp, Utc);
 	println!("{}", time_z);
 
 
-	let host = format!("http://{}:8086/", "10.8.1.1");
-	let flux = influxdb::Client::new(host, "ffhl-nodes".to_string());
+	let mut stats = model::Stats::new_empty();
 
-
-	let _measurements = Vec::<model::Node>::new();
-	for (i, node_val) in nodes.as_object().unwrap().get("nodes").unwrap().as_array().unwrap().iter().enumerate() {
-		let node: model::Node = match serde_json::from_value(node_val.clone()) {
-			Err(e) => {
-				eprintln!("{:#?}", node_val);
-				panic!(e.to_string());
-			},
-			Ok(r) => r
-		};
-
-
-		let mut data = influxdb::keys::Point::new("node");
+	for node in nodes.nodes.iter() {
+		let mut data = influxdb::keys::Point::new("nodes");
 		node.get_measurement(&mut data);
 		data.add_timestamp(time_z.timestamp_millis());
 
 
-		println!("{:#?}", data);
+		stats.clients += node.statistics.clients;
+		stats.nodes += 1;
 
-		print!("Nodes: {:03}\r", i);
+		stats.nodes_online += if node.flags.online {1} else {0};
+		stats.nodes_uplink += if node.flags.uplink {1} else {0};
+
+		stats.total_forwarded += if let Some(traffic) = &node.statistics.traffic {traffic.forward.bytes} else {0};
+		stats.rx_tx_delta += if let Some(traffic) = &node.statistics.traffic {traffic.rx.bytes - traffic.rx.bytes} else {0};
+
 
 		flux.write_point(data, Some(influxdb::keys::Precision::Milliseconds), None).unwrap();
 	}
 
+	println!("nodes saved {}", nodes.nodes.len());
+
+	let mut data = influxdb::keys::Point::new("stats");
+	stats.get_measurement(&mut data);
+	data.add_timestamp(time_z.timestamp_millis());
+	flux.write_point(data, Some(influxdb::keys::Precision::Milliseconds), None).unwrap();
+
 	Err(())
 }
+
+
 
 
 
@@ -69,6 +63,17 @@ pub mod model {
 	use serde::{Serialize, Deserialize};
 	use influx_db_client::keys::Point;
 	use influx_db_client::Value as Val;
+	use chrono::NaiveDateTime;
+
+
+
+	#[derive(Clone, Debug, Serialize, Deserialize)]
+	#[serde(deny_unknown_fields)]
+	pub struct NodesData {
+		pub timestamp: NaiveDateTime,
+		pub nodes: Vec<Node>,
+		pub version: i64,
+	}
 
 	#[derive(Clone, Debug, Serialize, Deserialize)]
 	#[serde(deny_unknown_fields)]
@@ -258,6 +263,38 @@ pub mod model {
 				data.add_field("traffic_forwarded_packets", Val::Integer(traffic.forward.packets));
 				data.add_field("traffic_forwarded_packets", Val::Integer(traffic.forward.packets));
 			}
+		}
+	}
+
+	#[derive(Debug, Clone, Default)]
+	pub struct Stats {
+		pub clients: i64,
+
+		// traffic
+		pub total_rx_bytes: i64,
+		pub total_tx_bytes: i64,
+		pub total_rx_packets: i64,
+		pub total_tx_packets: i64,
+		pub total_forwarded: i64,
+		pub rx_tx_delta: i64,
+
+		pub nodes_online: i64,
+		pub nodes_uplink: i64,
+		pub nodes: i64,
+	}
+
+	impl Stats {
+		pub fn new_empty() -> Self {
+			Self::default()
+		}
+
+		pub fn get_measurement(&self, data: &mut Point) {
+			data.add_field("clients", Val::Integer(self.clients));
+			data.add_field("nodes.online", Val::Integer(self.nodes_online));
+			data.add_field("nodes.uplink", Val::Integer(self.nodes_uplink));
+			data.add_field("nodes", Val::Integer(self.nodes));
+			data.add_field("traffic.forwarded", Val::Integer(self.total_forwarded));
+			data.add_field("traffic.rx_tx_delta", Val::Integer(self.rx_tx_delta));
 		}
 	}
 }
