@@ -1,14 +1,15 @@
-use crate::config;
-use reqwest;
-use serde_json;
-use postgres;
 use chrono;
 use chrono::DateTime;
 use chrono::NaiveDateTime;
 use chrono::Utc;
+use crate::config;
 use influx_db_client as influxdb;
+use influx_db_client::Point;
 use influx_db_client::Value as Val;
-
+use postgres;
+use reqwest;
+use serde_json;
+use serde_json::Value;
 
 pub fn collect(config: &config::Config) -> Result<(), ()> {
 	let flux = influxdb::Client::new(
@@ -16,39 +17,39 @@ pub fn collect(config: &config::Config) -> Result<(), ()> {
 		config.db.database.clone()
 	);
 
-	let graphs: serde_json::Value = reqwest::get(&config.sources.graph_url).unwrap().json().unwrap();
-	let nodes: model::NodesData = reqwest::get(&config.sources.nodes_url).unwrap().json().unwrap();
+	println!("getting nodes...");
+	let graphs: serde_json::Value = match reqwest::get(&config.sources.graph_url) {
+		Ok(mut r) => r.json().unwrap(),
+		Err(e) => panic!(e),
+	};
+
+	println!("getting graphs...");
+	let nodes: model::NodesData = match reqwest::get(&config.sources.nodes_url) {
+		Ok(mut r) => r.json().unwrap(),
+		Err(e) => panic!(e),
+	};
+
 	let time_z = DateTime::<Utc>::from_utc(nodes.timestamp, Utc);
 	println!("{}", time_z);
 
 
-	let mut stats = model::Stats::new_empty();
-
+	println!("writing data...");
 	for node in nodes.nodes.iter() {
-		let mut data = influxdb::keys::Point::new("nodes");
-		node.get_measurement(&mut data);
-		data.add_timestamp(time_z.timestamp_millis());
+		let mut measurement = influxdb::keys::Point::new("nodes");
+
+		flatten(vec![], serde_json::to_value(&node).unwrap().as_object().unwrap(), &mut measurement);
 
 
-		stats.clients += node.statistics.clients;
-		stats.nodes += 1;
-
-		stats.nodes_online += if node.flags.online {1} else {0};
-		stats.nodes_uplink += if node.flags.uplink {1} else {0};
-
-		stats.total_forwarded += if let Some(traffic) = &node.statistics.traffic {traffic.forward.bytes} else {0};
-		stats.rx_tx_delta += if let Some(traffic) = &node.statistics.traffic {traffic.rx.bytes - traffic.rx.bytes} else {0};
+		println!("{:#?}", measurement);
 
 
-		flux.write_point(data, Some(influxdb::keys::Precision::Milliseconds), None).unwrap();
+		node.get_measurement(&mut measurement);
+		measurement.add_timestamp(time_z.timestamp_millis());
+
+		flux.write_point(measurement, Some(influxdb::keys::Precision::Milliseconds), None).unwrap();
 	}
 
 	println!("nodes saved {}", nodes.nodes.len());
-
-	let mut data = influxdb::keys::Point::new("stats");
-	stats.get_measurement(&mut data);
-	data.add_timestamp(time_z.timestamp_millis());
-	flux.write_point(data, Some(influxdb::keys::Precision::Milliseconds), None).unwrap();
 
 	Err(())
 }
@@ -68,7 +69,6 @@ pub mod model {
 
 
 	#[derive(Clone, Debug, Serialize, Deserialize)]
-	#[serde(deny_unknown_fields)]
 	pub struct NodesData {
 		pub timestamp: NaiveDateTime,
 		pub nodes: Vec<Node>,
@@ -76,7 +76,6 @@ pub mod model {
 	}
 
 	#[derive(Clone, Debug, Serialize, Deserialize)]
-	#[serde(deny_unknown_fields)]
 	pub struct Node {
 		pub firstseen: String, //todo: use chrono
 		pub lastseen: String,  //todo: use chrono
@@ -86,7 +85,6 @@ pub mod model {
 	}
 
 	#[derive(Clone, Debug, Serialize, Deserialize)]
-	#[serde(deny_unknown_fields)]
 	pub struct Statistics {
 		pub clients: i64,
 		pub loadavg: Option<f64>,
@@ -98,7 +96,6 @@ pub mod model {
 	}
 
 	#[derive(Clone, Debug, Serialize, Deserialize)]
-	#[serde(deny_unknown_fields)]
 	pub struct Traffic {
 		pub forward: TrafficIO,
 		pub mgmt_rx: TrafficIO,
@@ -108,7 +105,6 @@ pub mod model {
 	}
 
 	#[derive(Clone, Debug, Serialize, Deserialize)]
-	#[serde(deny_unknown_fields)]
 	pub struct TrafficIO {
 		pub bytes: i64,
 		pub packets: i64,
@@ -298,3 +294,49 @@ pub mod model {
 		}
 	}
 }
+
+
+
+pub fn flatten(key: Vec<String>, val: &serde_json::Map<String, Value>, point: &mut Point) {
+
+	for (new_key, val) in val.into_iter() {
+		let mut key = key.clone();
+
+		key.push(new_key.clone());
+
+		match val {
+			Value::Bool(b) => {
+				point.add_field(key.join("."), Val::Boolean(*b));
+			},
+			Value::Number(n) => {
+				match (n.is_i64(), n.is_u64(), n.is_f64()) {
+					(false, false, true ) => point.add_field(key.join("."), Val::Float(n.as_f64().unwrap())),
+					(true , true , false) => point.add_field(key.join("."), Val::Integer(n.as_i64().unwrap())),
+					(true , false, false) => point.add_field(key.join("."), Val::Integer(n.as_i64().unwrap())),
+					(false, true , false) => point.add_field(key.join("."), Val::Integer(n.as_u64().unwrap() as i64)),
+					_ => panic!("aahhhhhhh"),
+				};
+			},
+			Value::String(s) => {
+				point.add_field(key.join("."), Val::String(s.clone()));
+			},
+			Value::Object(o) => {
+				flatten(key, o, point)
+			}
+			_ => ()
+		}
+	}
+}
+
+
+
+// some stat things
+
+// stats.clients += node.statistics.clients;
+// stats.nodes += 1;
+
+// stats.nodes_online += if node.flags.online {1} else {0};
+// stats.nodes_uplink += if node.flags.uplink {1} else {0};
+
+// stats.total_forwarded += if let Some(traffic) = &node.statistics.traffic {traffic.forward.bytes} else {0};
+// stats.rx_tx_delta += if let Some(traffic) = &node.statistics.traffic {traffic.rx.bytes - traffic.rx.bytes} else {0};
