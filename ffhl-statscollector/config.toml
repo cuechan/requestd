@@ -1,0 +1,10 @@
+[db]
+host = "localhost"
+port = 8086
+user = "ffhl"
+password = "ffhl"
+database = "ffhl"
+
+[sources]
+graph_url = "https://map.hamburg.freifunk.net/data/graph.json"
+nodes_url = "https://map.hamburg.freifunk.net/data/nodes.json"

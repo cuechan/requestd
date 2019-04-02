@@ -1,0 +1,7 @@
+[package]
+name = "ffhl-multicast"
+version = "0.1.0"
+authors = ["Paul Maruhn <paulmaruhn@posteo.de>"]
+edition = "2018"
+
+[dependencies]

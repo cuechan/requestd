@@ -1,0 +1,16 @@
+[package]
+name = "ffhl-collector"
+version = "0.1.0"
+authors = ["Paul Maruhn <paulmaruhn@posteo.de>"]
+edition = "2018"
+
+[dependencies]
+curl = "0.4.19"
+postgres = {version = "0.15.2", features = ["with-serde_json", "with-chrono"]}
+toml = "0.4.10"
+serde_json = "1.0.38"
+serde = {version = "1.0.88", features = ["derive"] }
+clap = "2.32.0"
+reqwest = "0.9.1"
+chrono = {version = "0.4.6", features = ["serde"]}
+influx_db_client = {path = "../InfluxDBClient-rs", version = "0.3.6"}

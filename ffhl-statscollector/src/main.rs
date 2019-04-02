@@ -13,23 +13,30 @@ pub const APPNAME: &str = "ffhl-collector";
 fn main() {
 
 	// read config files
-	let matches = load_args();
+	let mut clap = clap_app();
+	let matches = clap.get_matches();
 	let config = config::Config::load_config(&matches);
 
 
-	if matches.is_present("dbsetup") {
-		dbsetup(&config.db).unwrap();
-		process::exit(0);
-	}
-	if matches.is_present("collect") {
-		collector::collect(&config);
+	match matches.subcommand_name() {
+		Some("dbsetup") => {
+			dbsetup(&config.db).unwrap();
+			process::exit(0);
+		},
+		None | Some("collect") => {
+			collector::collect(&config);
+		},
+		_ => {
+			// clap.print_help();
+			process::exit(1);
+		}
 	}
 }
 
 
 
 
-fn load_args<'a>() -> clap::ArgMatches<'a> {
+fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 	clap::App::new(APPNAME)
 		.version("0.0.0")
 		.arg(clap::Arg::with_name("config")
@@ -50,7 +57,6 @@ fn load_args<'a>() -> clap::ArgMatches<'a> {
 		.subcommand(clap::SubCommand::with_name("dbsetup")
 			.about("delete old and create new tables")
 		)
-		.get_matches()
 }
 
 

@@ -11,6 +11,15 @@ use reqwest;
 use serde_json;
 use serde_json::Value;
 
+
+const tags: &[&str] = &[
+	""
+];
+
+
+
+
+
 pub fn collect(config: &config::Config) -> Result<(), ()> {
 	let flux = influxdb::Client::new(
 		format!( "http://{}:{}", config.db.host, config.db.port),
