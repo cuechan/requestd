@@ -30,6 +30,8 @@ fn main() {
 			process::exit(0);
 		},
 		None | Some("collect") => {
+			let sleep: u64 = matches.value_of("delay").unwrap().parse().unwrap();
+			thread::sleep(Duration::from_millis(sleep));
 			collector::collect(&config);
 		},
 		_ => {
@@ -63,6 +65,19 @@ fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 			.long("quiet")
 			.help("disable output")
 			.takes_value(false)
+		)
+		.arg(clap::Arg::with_name("delay")
+			.short("d")
+			.long("delay")
+			.help("delay before fetching data in ms")
+			.takes_value(true)
+			.default_value("0")
+			.validator(|x| {
+				match x.parse::<u64>() {
+					Ok(_) => Ok(()),
+					Err(e) => Err(e.to_string()),
+				}
+			})
 		)
 		.subcommand(clap::SubCommand::with_name("collect")
 			.about("collect and save data")
