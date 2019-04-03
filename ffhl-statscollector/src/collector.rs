@@ -10,10 +10,20 @@ use postgres;
 use reqwest;
 use serde_json;
 use serde_json::Value;
+use log::{trace, error};
 
 
-const tags: &[&str] = &[
-	""
+const TAGS: &[&str] = &[
+	"statistics.clients",
+	"nodeinfo.software.firmware.base",
+	"nodeinfo.software.autoupdater.enabled",
+	"nodeinfo.software.autoupdater.branch",
+	"nodeinfo.node_id",
+	"nodeinfo.hostname",
+	"nodeinfo.hardware.model",
+	"flags.uplink",
+	"flags.online",
+	"nodeinfo.software.fastd.version",
 ];
 
 
@@ -27,9 +37,12 @@ pub fn collect(config: &config::Config) -> Result<(), ()> {
 	);
 
 	println!("getting nodes...");
-	let graphs: serde_json::Value = match reqwest::get(&config.sources.graph_url) {
-		Ok(mut r) => r.json().unwrap(),
-		Err(e) => panic!(e),
+	let graphs: serde_json::Value = match reqwest::get(&config.sources.graph_url).unwrap().json() {
+		Ok(mut r) => r,
+		Err(e) => {
+			error!("{:#?}", e);
+			panic!();
+		},
 	};
 
 	println!("getting graphs...");
@@ -46,7 +59,7 @@ pub fn collect(config: &config::Config) -> Result<(), ()> {
 	for node in nodes.nodes.iter() {
 		let mut measurement = influxdb::keys::Point::new("nodes");
 
-		flatten(vec![], serde_json::to_value(&node).unwrap().as_object().unwrap(), &mut measurement);
+		flatten(String::new(), serde_json::to_value(&node).unwrap().as_object().unwrap(), &mut measurement);
 
 
 		println!("{:#?}", measurement);
@@ -306,28 +319,50 @@ pub mod model {
 
 
 
-pub fn flatten(key: Vec<String>, val: &serde_json::Map<String, Value>, point: &mut Point) {
-
+pub fn flatten(key: String, val: &serde_json::Map<String, Value>, point: &mut Point) {
 	for (new_key, val) in val.into_iter() {
 		let mut key = key.clone();
 
-		key.push(new_key.clone());
+
+		key = match key.is_empty() {
+			true => new_key.clone(),
+			false => vec![key,new_key.clone()].join("."),
+		};
+
 
 		match val {
 			Value::Bool(b) => {
-				point.add_field(key.join("."), Val::Boolean(*b));
-			},
-			Value::Number(n) => {
-				match (n.is_i64(), n.is_u64(), n.is_f64()) {
-					(false, false, true ) => point.add_field(key.join("."), Val::Float(n.as_f64().unwrap())),
-					(true , true , false) => point.add_field(key.join("."), Val::Integer(n.as_i64().unwrap())),
-					(true , false, false) => point.add_field(key.join("."), Val::Integer(n.as_i64().unwrap())),
-					(false, true , false) => point.add_field(key.join("."), Val::Integer(n.as_u64().unwrap() as i64)),
-					_ => panic!("aahhhhhhh"),
+				if is_tag(&key) {
+					point.add_tag(key, Val::Boolean(*b))
+				} else {
+					point.add_field(key, Val::Boolean(*b))
 				};
 			},
+			Value::Number(n) => {
+				if is_tag(&key) {
+					match (n.is_i64(), n.is_u64(), n.is_f64()) {
+						(false, false, true ) => point.add_tag(key, Val::Float(n.as_f64().unwrap())),
+						(true , true , false) => point.add_tag(key, Val::Integer(n.as_i64().unwrap())),
+						(true , false, false) => point.add_tag(key, Val::Integer(n.as_i64().unwrap())),
+						(false, true , false) => point.add_tag(key, Val::Integer(n.as_u64().unwrap() as i64)),
+						_ => panic!("aahhhhhhh"),
+					};
+				} else {
+					match (n.is_i64(), n.is_u64(), n.is_f64()) {
+						(false, false, true ) => point.add_field(key, Val::Float(n.as_f64().unwrap())),
+						(true , true , false) => point.add_field(key, Val::Integer(n.as_i64().unwrap())),
+						(true , false, false) => point.add_field(key, Val::Integer(n.as_i64().unwrap())),
+						(false, true , false) => point.add_field(key, Val::Integer(n.as_u64().unwrap() as i64)),
+						_ => panic!("aahhhhhhh"),
+					};
+				}
+			},
 			Value::String(s) => {
-				point.add_field(key.join("."), Val::String(s.clone()));
+				if is_tag(&key) {
+					point.add_tag(key, Val::String(s.clone()));
+				} else {
+					point.add_field(key, Val::String(s.clone()));
+				}
 			},
 			Value::Object(o) => {
 				flatten(key, o, point)
@@ -337,6 +372,16 @@ pub fn flatten(key: Vec<String>, val: &serde_json::Map<String, Value>, point: &m
 	}
 }
 
+
+fn is_tag(key: &String) -> bool {
+	for i in TAGS {
+		if i == &key {
+			return true
+		}
+	}
+
+	false
+}
 
 
 // some stat things

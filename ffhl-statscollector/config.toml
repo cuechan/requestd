@@ -6,5 +6,5 @@ password = "ffhl"
 database = "ffhl"
 
 [sources]
-graph_url = "https://map.hamburg.freifunk.net/data/graph.json"
-nodes_url = "https://map.hamburg.freifunk.net/data/nodes.json"
+graph_url = "https://map.luebeck.freifunk.net/data/graph.json"
+nodes_url = "https://map.luebeck.freifunk.net/data/nodes.json"

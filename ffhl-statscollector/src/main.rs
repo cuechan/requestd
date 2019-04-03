@@ -1,16 +1,20 @@
-extern crate clap;
-
-pub mod config;
-pub mod collector;
-
+use clap;
 use std::fs::File;
 use std::process;
 use std::thread;
 use std::time::Duration;
+use log::{trace, debug, info, warn, error};
+use pretty_env_logger;
+
+pub mod config;
+pub mod collector;
 
 pub const APPNAME: &str = "ffhl-collector";
 
 fn main() {
+	pretty_env_logger::init();
+
+	info!("started!");
 
 	// read config files
 	let mut clap = clap_app();
