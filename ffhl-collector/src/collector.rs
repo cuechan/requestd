@@ -10,7 +10,7 @@ use postgres;
 use reqwest;
 use serde_json;
 use serde_json::Value;
-use log::{trace, error};
+use log::{trace, debug, info, error};
 
 
 const TAGS: &[&str] = &[
@@ -36,7 +36,7 @@ pub fn collect(config: &config::Config) -> Result<(), ()> {
 		config.db.database.clone()
 	);
 
-	println!("getting nodes...");
+	info!("getting nodes...");
 	let graphs: serde_json::Value = match reqwest::get(&config.sources.graph_url).unwrap().json() {
 		Ok(mut r) => r,
 		Err(e) => {
@@ -45,24 +45,21 @@ pub fn collect(config: &config::Config) -> Result<(), ()> {
 		},
 	};
 
-	println!("getting graphs...");
+	info!("getting graphs...");
 	let nodes: model::NodesData = match reqwest::get(&config.sources.nodes_url) {
 		Ok(mut r) => r.json().unwrap(),
 		Err(e) => panic!(e),
 	};
 
 	let time_z = DateTime::<Utc>::from_utc(nodes.timestamp, Utc);
-	println!("{}", time_z);
+	info!("{}", time_z);
 
 
-	println!("writing data...");
+	debug!("writing data...");
 	for node in nodes.nodes.iter() {
 		let mut measurement = influxdb::keys::Point::new("nodes");
 
 		flatten(String::new(), serde_json::to_value(&node).unwrap().as_object().unwrap(), &mut measurement);
-
-
-		println!("{:#?}", measurement);
 
 
 		node.get_measurement(&mut measurement);
@@ -71,7 +68,7 @@ pub fn collect(config: &config::Config) -> Result<(), ()> {
 		flux.write_point(measurement, Some(influxdb::keys::Precision::Milliseconds), None).unwrap();
 	}
 
-	println!("nodes saved {}", nodes.nodes.len());
+	info!("nodes saved {}", nodes.nodes.len());
 
 	Err(())
 }
@@ -329,6 +326,10 @@ pub fn flatten(key: String, val: &serde_json::Map<String, Value>, point: &mut Po
 			false => vec![key,new_key.clone()].join("."),
 		};
 
+
+		if !val.is_object() && !val.is_array() {
+			debug!("{} => {:?}", key, val);
+		}
 
 		match val {
 			Value::Bool(b) => {

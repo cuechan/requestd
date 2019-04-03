@@ -2,6 +2,8 @@ use serde::{Serialize, Deserialize};
 use std::fs::File;
 use std::io::Read;
 use postgres::params::*;
+use std::process;
+use log::{error};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -33,9 +35,14 @@ impl Config {
 			.unwrap();
 
 		let mut config_str = String::new();
-		File::open(path).expect(&format!("there is no config file at {}", path))
-			.read_to_string(&mut config_str)
-			.unwrap();
+		match File::open(path) {
+			Err(e) => {
+				eprintln!("no config file");
+				error!("{}: {}", e, path);
+				process::exit(1);
+			},
+			Ok(mut r) => {r.read_to_string(&mut config_str).unwrap();},
+		}
 
 
 		toml::from_str(&config_str).expect("something is wrong with your config")

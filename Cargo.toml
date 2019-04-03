@@ -1,6 +1,6 @@
 [workspace] 
 members = [
-	"ffhl-statscollector",
+	"ffhl-collector",
 	"ffhl-multicast",
 	"InfluxDBClient-rs"
 ]

@@ -12,13 +12,15 @@ pub mod collector;
 pub const APPNAME: &str = "ffhl-collector";
 
 fn main() {
-	pretty_env_logger::init();
-
-	info!("started!");
 
 	// read config files
 	let mut clap = clap_app();
-	let matches = clap.get_matches();
+	let matches = clap.clone().get_matches();
+
+	if !matches.is_present("quiet") {
+		pretty_env_logger::init();
+	}
+
 	let config = config::Config::load_config(&matches);
 
 
@@ -31,7 +33,8 @@ fn main() {
 			collector::collect(&config);
 		},
 		_ => {
-			// clap.print_help();
+			println!("foo");
+			clap.print_help();
 			process::exit(1);
 		}
 	}
@@ -54,6 +57,12 @@ fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 					Ok(_) => Ok(())
 				}
 			})
+		)
+		.arg(clap::Arg::with_name("quiet")
+			.short("q")
+			.long("quiet")
+			.help("disable output")
+			.takes_value(false)
 		)
 		.subcommand(clap::SubCommand::with_name("collect")
 			.about("collect and save data")

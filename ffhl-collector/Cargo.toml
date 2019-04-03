@@ -15,5 +15,5 @@ reqwest = "0.9.1"
 chrono = {version = "0.4.6", features = ["serde"]}
 # influx_db_client = {path = "../InfluxDBClient-rs", version = "0.3.6"}
 influx_db_client = "0.3.6"
-log = "0.4.6"
+log = "0.4.0"
 pretty_env_logger = "0.3.0"
