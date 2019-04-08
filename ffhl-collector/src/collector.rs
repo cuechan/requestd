@@ -11,19 +11,19 @@ use reqwest;
 use serde_json;
 use serde_json::Value;
 use log::{trace, debug, info, error};
-
+use eui48::MacAddress;
+use crate::TABLE;
+use crate::Error;
 
 const TAGS: &[&str] = &[
-	"statistics.clients",
 	"nodeinfo.software.firmware.base",
+	"nodeinfo.software.fastd.version",
 	"nodeinfo.software.autoupdater.enabled",
 	"nodeinfo.software.autoupdater.branch",
 	"nodeinfo.node_id",
-	"nodeinfo.hostname",
 	"nodeinfo.hardware.model",
 	"flags.uplink",
 	"flags.online",
-	"nodeinfo.software.fastd.version",
 ];
 
 
@@ -32,7 +32,7 @@ const TAGS: &[&str] = &[
 
 pub fn collect(config: &config::Config) -> Result<(), ()> {
 	let flux = influxdb::Client::new(
-		format!( "http://{}:{}", config.db.host, config.db.port),
+		format!( "http://{}:{}", config.db.host, 8086),
 		config.db.database.clone()
 	);
 
@@ -52,25 +52,97 @@ pub fn collect(config: &config::Config) -> Result<(), ()> {
 	};
 
 	let time_z = DateTime::<Utc>::from_utc(nodes.timestamp, Utc);
-	info!("{}", time_z);
+	info!("current date: {}", time_z);
+
+	trace!("connecting to postgresql");
+	let psql = postgres::Connection::connect(config.db.connection_params(), postgres::TlsMode::None).unwrap();
+
+	// check if timestamp is already present
+
+	// let check_existence = psql.prepare(&format!(
+	// 	"SELECT date_trunc('minute', max(timestamp)) FROM {0}",
+	// 	TABLE
+	// )).unwrap();
+
+
+
+
+
+
 
 
 	debug!("writing data...");
 	for node in nodes.nodes.iter() {
-		let mut measurement = influxdb::keys::Point::new("nodes");
-
-		flatten(String::new(), serde_json::to_value(&node).unwrap().as_object().unwrap(), &mut measurement);
-
-
-		node.get_measurement(&mut measurement);
-		measurement.add_timestamp(time_z.timestamp_millis());
-
-		flux.write_point(measurement, Some(influxdb::keys::Precision::Milliseconds), None).unwrap();
+		store_node_postgres(&psql, time_z, node).unwrap();
 	}
 
-	info!("nodes saved {}", nodes.nodes.len());
+
+
+	info!("saved {} nodes", nodes.nodes.len());
 
 	Err(())
+}
+
+
+
+pub fn store_node_influx(influx: &influxdb::Client, time: DateTime<Utc>, node: &serde_json::Value) -> Result<(), Error> {
+	let mut measurement = influxdb::keys::Point::new("nodes");
+	measurement.add_timestamp(time.timestamp_millis());
+
+	flatten(
+		String::new(),
+		&node,
+		&mut measurement
+	);
+
+	debug!("insert into influx");
+	influx.write_point(
+		measurement,
+		Some(influxdb::keys::Precision::Milliseconds),
+		None
+	).map_err(Error::Influx)
+}
+
+
+pub fn store_node_postgres(psql: &postgres::Connection, time: DateTime<Utc>, node: &model::Node) -> Result<(), ()> {
+	let check_existence = psql.prepare(&format!("
+		SELECT count(*) AS count
+		FROM {0}
+		WHERE
+			timestamp::timestamptz = date_trunc('minute', $1::timestamptz)
+			AND
+			(data->'nodeinfo'->>'node_id') = $2
+		", TABLE
+	)).unwrap();
+
+
+	trace!("prepare sql statement");
+	let insert_query = psql.prepare(&format!(
+		"INSERT INTO {0}
+		(timestamp, data) VALUES (date_trunc('minute', $1::timestamptz), $2)",
+		TABLE
+	)).unwrap();
+
+
+	debug!("checking: {} {}", time, node.nodeinfo.node_id);
+	let rows = check_existence.query(&[
+			&time,
+			&node.nodeinfo.node_id
+		]).unwrap();
+
+	if rows.get(0).get::<_, i64>(0) > 0 {
+		debug!("skipping: {} {}", node.nodeinfo.node_id, time);
+	} else {
+		debug!("inserting: {} {}", time, node.nodeinfo.node_id);
+		insert_query.execute(&[
+			&time,
+			&serde_json::to_value(&node).unwrap(),
+		]).unwrap();
+	}
+
+	check_existence.finish().unwrap();
+	insert_query.finish().unwrap();
+	Ok(())
 }
 
 
@@ -316,60 +388,56 @@ pub mod model {
 
 
 
-pub fn flatten(key: String, val: &serde_json::Map<String, Value>, point: &mut Point) {
-	for (new_key, val) in val.into_iter() {
-		let mut key = key.clone();
+pub fn flatten(mut key: String, val: &serde_json::Value, point: &mut Point) {
+	if !val.is_object() && !val.is_array() {
+		trace!("{} => {:?}", key, val);
+	}
 
-
-		key = match key.is_empty() {
-			true => new_key.clone(),
-			false => vec![key,new_key.clone()].join("."),
-		};
-
-
-		if !val.is_object() && !val.is_array() {
-			debug!("{} => {:?}", key, val);
-		}
-
-		match val {
-			Value::Bool(b) => {
-				if is_tag(&key) {
-					point.add_tag(key, Val::Boolean(*b))
-				} else {
-					point.add_field(key, Val::Boolean(*b))
-				};
-			},
-			Value::Number(n) => {
-				if is_tag(&key) {
-					match (n.is_i64(), n.is_u64(), n.is_f64()) {
-						(false, false, true ) => point.add_tag(key, Val::Float(n.as_f64().unwrap())),
-						(true , true , false) => point.add_tag(key, Val::Integer(n.as_i64().unwrap())),
-						(true , false, false) => point.add_tag(key, Val::Integer(n.as_i64().unwrap())),
-						(false, true , false) => point.add_tag(key, Val::Integer(n.as_u64().unwrap() as i64)),
-						_ => panic!("aahhhhhhh"),
-					};
-				} else {
-					match (n.is_i64(), n.is_u64(), n.is_f64()) {
-						(false, false, true ) => point.add_field(key, Val::Float(n.as_f64().unwrap())),
-						(true , true , false) => point.add_field(key, Val::Integer(n.as_i64().unwrap())),
-						(true , false, false) => point.add_field(key, Val::Integer(n.as_i64().unwrap())),
-						(false, true , false) => point.add_field(key, Val::Integer(n.as_u64().unwrap() as i64)),
-						_ => panic!("aahhhhhhh"),
-					};
-				}
-			},
-			Value::String(s) => {
-				if is_tag(&key) {
-					point.add_tag(key, Val::String(s.clone()));
-				} else {
-					point.add_field(key, Val::String(s.clone()));
-				}
-			},
-			Value::Object(o) => {
-				flatten(key, o, point)
+	match val {
+		Value::Bool(b) => {
+			if is_tag(&key) {
+				point.add_tag(&key, Val::Boolean(*b));
 			}
-			_ => ()
+			else {
+				point.add_field(&key, Val::Boolean(*b));
+			}
+		},
+		Value::Number(n) => {
+			if is_tag(&key) {
+				match (n.is_i64(), n.is_u64(), n.is_f64()) {
+					(false, false, true ) => point.add_tag(&key, Val::Float(n.as_f64().unwrap())),
+					(true , true , false) => point.add_tag(&key, Val::Integer(n.as_i64().unwrap())),
+					(true , false, false) => point.add_tag(&key, Val::Integer(n.as_i64().unwrap())),
+					(false, true , false) => point.add_tag(&key, Val::Integer(n.as_u64().unwrap() as i64)),
+					_ => panic!("aahhhhhhh"),
+				};
+			} else {
+				match (n.is_i64(), n.is_u64(), n.is_f64()) {
+					(false, false, true ) => point.add_field(&key, Val::Float(n.as_f64().unwrap())),
+					(true , true , false) => point.add_field(&key, Val::Integer(n.as_i64().unwrap())),
+					(true , false, false) => point.add_field(&key, Val::Integer(n.as_i64().unwrap())),
+					(false, true , false) => point.add_field(&key, Val::Integer(n.as_u64().unwrap() as i64)),
+					_ => panic!("aahhhhhhh"),
+				};
+			}
+
+		},
+		Value::String(s) => {
+			if is_tag(&&key) {
+				point.add_tag(&key, Val::String(s.clone()));
+			} else {
+				point.add_field(&key, Val::String(s.clone()));
+			}
+		},
+		Value::Object(o) => {
+			for (nkey, nval) in o {
+				match &key.is_empty() {
+					true => flatten(nkey.clone(), nval, point),
+					false => flatten(vec![key.clone(), nkey.clone()].join("."), nval, point),
+				};
+			}
 		}
+		_ => ()
 	}
 }
 

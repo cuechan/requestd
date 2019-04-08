@@ -3,3 +3,4 @@
 /.vscode
 
 /collector.toml
+config.toml
