@@ -14,6 +14,7 @@ use log::{trace, debug, info, error};
 use eui48::MacAddress;
 use crate::TABLE;
 use crate::Error;
+use std::ops;
 
 const TAGS: &[&str] = &[
 	"nodeinfo.software.firmware.base",
@@ -32,56 +33,103 @@ const TAGS: &[&str] = &[
 
 pub fn collect(config: &config::Config) -> Result<(), ()> {
 	let flux = influxdb::Client::new(
-		format!( "http://{}:{}", config.db.host, 8086),
+		format!( "http://{}:{}", config.db.influx, 8086),
 		config.db.database.clone()
 	);
 
-	info!("getting nodes...");
-	let graphs: serde_json::Value = match reqwest::get(&config.sources.graph_url).unwrap().json() {
-		Ok(mut r) => r,
-		Err(e) => {
-			error!("{:#?}", e);
-			panic!();
-		},
-	};
-
-	info!("getting graphs...");
-	let nodes: model::NodesData = match reqwest::get(&config.sources.nodes_url) {
-		Ok(mut r) => r.json().unwrap(),
-		Err(e) => panic!(e),
-	};
-
-	let time_z = DateTime::<Utc>::from_utc(nodes.timestamp, Utc);
-	info!("current date: {}", time_z);
-
-	trace!("connecting to postgresql");
-	let psql = postgres::Connection::connect(config.db.connection_params(), postgres::TlsMode::None).unwrap();
-
-	// check if timestamp is already present
-
-	// let check_existence = psql.prepare(&format!(
-	// 	"SELECT date_trunc('minute', max(timestamp)) FROM {0}",
-	// 	TABLE
-	// )).unwrap();
+	// let graphs: serde_json::Value = match reqwest::get(&config.sources.graph_url).unwrap().json() {
+	// 	Ok(mut r) => r,
+	// 	Err(e) => {
+	// 		error!("{:#?}", e);
+	// 		panic!();
+	// 	},
+	// };
 
 
+	let mut all_nodes = vec![];
+	// let time_z = DateTime::<Utc>::from_utc(nodes.timestamp, Utc);
 
 
+	for source in &config.sources {
+		info!("getting nodes from {}", source.nodes_url);
 
+		let mut nodes: model::NodesData = match reqwest::get(&source.nodes_url) {
+			Ok(mut r) => r.json().unwrap(),
+			Err(e) => panic!(e),
+		};
 
-
-
-	debug!("writing data...");
-	for node in nodes.nodes.iter() {
-		store_node_postgres(&psql, time_z, node).unwrap();
+		all_nodes.append(&mut nodes.nodes);
 	}
 
+	let timez = Utc::now();
+	let total_nodes = all_nodes.len();
+	info!("got {} nodes", total_nodes);
 
 
-	info!("saved {} nodes", nodes.nodes.len());
+	let probe = Probe::new(all_nodes).get_some_stats();
+
+	info!("loadavg: {:#?}", probe);
+
+	let mut point = influxdb::Point::new("stats");
+	point.add_field("load", Val::Float(probe.0));
+	point.add_field("clients", Val::Integer(probe.1));
+	point.add_field("bytes_forwarded", Val::Integer(probe.2.forward.bytes));
+	point.add_field("bytes_mgmt_rx", Val::Integer(probe.2.mgmt_rx.bytes));
+	point.add_field("bytes_mgmt_tx", Val::Integer(probe.2.mgmt_tx.bytes));
+	point.add_field("nodes", Val::Integer(total_nodes as i64));
+
+	flux.write_point(point, Some(influxdb::Precision::Minutes), None).unwrap();
 
 	Err(())
 }
+
+
+
+
+pub struct Probe {
+	nodes: Vec<model::Node>,
+}
+
+
+impl Probe {
+	fn new(nodedata: Vec<model::Node>) -> Self {
+		Self {
+			nodes: nodedata
+		}
+	}
+
+
+	pub fn get_some_stats(&self) -> (f64, i64, model::Traffic) {
+		let mut clients = 0;
+		let mut load_avg: f64 = 0.0;
+		let mut load_avg_counter = 0;
+
+		let mut traffic = model::Traffic::default();
+
+		for node in self.nodes.iter() {
+			match node.statistics.loadavg {
+				None => continue,
+				Some(x) => {
+					load_avg_counter += 1;
+					load_avg += x;
+				}
+			}
+
+			match &node.statistics.traffic {
+				None => continue,
+				Some(x) => {
+					traffic += x.clone();
+				}
+			}
+
+			clients += node.statistics.clients;
+		}
+
+
+		(load_avg/load_avg_counter as f64, clients, traffic)
+	}
+}
+
 
 
 
@@ -156,6 +204,8 @@ pub mod model {
 	use influx_db_client::keys::Point;
 	use influx_db_client::Value as Val;
 	use chrono::NaiveDateTime;
+	use std::ops;
+	use std::default::Default;
 
 
 
@@ -186,7 +236,7 @@ pub mod model {
 		pub vpn_peers: Option<Vec<String>>,
 	}
 
-	#[derive(Clone, Debug, Serialize, Deserialize)]
+	#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 	pub struct Traffic {
 		pub forward: TrafficIO,
 		pub mgmt_rx: TrafficIO,
@@ -195,11 +245,74 @@ pub mod model {
 		pub tx: TrafficIO,
 	}
 
+
+	impl ops::Add for Traffic {
+		type Output = Traffic;
+
+		fn add(self, other: Self::Output) -> Self::Output {
+			Self {
+				forward: self.forward + other.forward,
+				mgmt_rx: self.mgmt_rx + other.mgmt_rx,
+				mgmt_tx: self.mgmt_tx + other.mgmt_tx,
+				rx: self.rx + other.rx,
+				tx: self.tx + other.tx,
+			}
+		}
+	}
+
+
+	impl ops::AddAssign for Traffic {
+		fn add_assign(&mut self, other: Self) {
+			*self = Self {
+				forward: self.forward.clone() + other.forward,
+				mgmt_rx: self.mgmt_rx.clone() + other.mgmt_rx,
+				mgmt_tx: self.mgmt_tx.clone() + other.mgmt_tx,
+				rx: self.rx.clone() + other.rx,
+				tx: self.tx.clone() + other.tx,
+			}
+		}
+	}
+
+
+
 	#[derive(Clone, Debug, Serialize, Deserialize)]
 	pub struct TrafficIO {
 		pub bytes: i64,
 		pub packets: i64,
 		pub dropped: Option<i64>
+	}
+
+	impl Default for TrafficIO {
+		fn default() -> Self {
+			Self {
+				bytes: 0,
+				packets: 0,
+				dropped: Some(0),
+			}
+		}
+	}
+
+	impl ops::Add for TrafficIO {
+		type Output = TrafficIO;
+
+		fn add(self, other: Self::Output) -> Self::Output {
+			Self {
+				bytes: self.bytes + other.bytes,
+				packets: self.packets + other.packets,
+				dropped: Some(self.dropped.unwrap_or(0) + other.dropped.unwrap_or(0)),
+			}
+		}
+	}
+
+
+	impl ops::AddAssign for TrafficIO {
+		fn add_assign(&mut self, other: Self) {
+			*self = Self {
+				bytes: self.bytes + other.bytes,
+				packets: self.packets + other.packets,
+				dropped: Some(self.dropped.unwrap_or(0) + other.dropped.unwrap_or(0)),
+			}
+		}
 	}
 
 	#[derive(Clone, Debug, Serialize, Deserialize)]
@@ -280,78 +393,6 @@ pub mod model {
 	}
 
 
-
-	impl Node {
-		pub fn get_measurement(&self, data: &mut Point) {
-
-			data.add_tag("node_id", Val::String(self.nodeinfo.node_id.clone()));
-			data.add_tag("firmware", Val::String(self.nodeinfo.software.firmware.base.clone()));
-			data.add_tag("is_online", Val::Boolean(self.flags.online));
-			data.add_tag("has_uplink", Val::Boolean(self.flags.uplink));
-
-
-			data.add_field("node_id", Val::String(self.nodeinfo.node_id.clone()));
-
-			data.add_field("online", Val::Boolean(self.flags.online));
-			data.add_field("uplink", Val::Boolean(self.flags.uplink));
-			data.add_field("firmware_base", Val::String(self.nodeinfo.software.firmware.base.clone()));
-			data.add_field("firmware_release", Val::String(self.nodeinfo.software.firmware.release.clone()));
-
-			data.add_field("clients", Val::Integer(self.statistics.clients));
-
-			if let Some(model) = &self.nodeinfo.hardware.model {
-				data.add_field("hardware_model", Val::String(model.clone()));
-			}
-
-			if let Some(nproc) = self.nodeinfo.hardware.nproc {
-				data.add_field("hardware_nproc", Val::Integer(nproc));
-			}
-
-			if let Some(au) = &self.nodeinfo.software.autoupdater {
-				data.add_field("software_autoupdate_enabled", Val::Boolean(au.enabled));
-				data.add_field("software_autoupdate_branch", Val::String(au.branch.clone()));
-			}
-
-			if let Some(fastd) = &self.nodeinfo.software.fastd {
-				data.add_field("software_fastd_enabled", Val::Boolean(fastd.enabled));
-				data.add_field("software_autoupdate_branch", Val::String(fastd.version.clone()));
-			}
-
-			data.add_field("software_batman_version", Val::String(self.nodeinfo.software.batman_adv.version.clone()));
-			if let Some(compat) = self.nodeinfo.software.batman_adv.compat {
-				data.add_field("software_batman_compat", Val::Integer(compat));
-			}
-
-
-			if let Some(loadavg) = self.statistics.loadavg {
-				data.add_field("statistics_loadavg", Val::Float(loadavg));
-			}
-
-			if let Some(mem) = self.statistics.memory_usage {
-				data.add_field("statistic_memory_usage", Val::Float(mem));
-			}
-
-			if let Some(fs_use) = self.statistics.rootfs_usage {
-				data.add_field("statistic_rootfs_usage", Val::Float(fs_use));
-			}
-
-			if let Some(uptime) = self.statistics.uptime {
-				data.add_field("statistics_uptime", Val::Float(uptime));
-			}
-
-			if let Some(traffic) = &self.statistics.traffic {
-				data.add_field("traffic_rx_bytes", Val::Integer(traffic.rx.bytes));
-				data.add_field("traffic_tx_bytes", Val::Integer(traffic.tx.bytes));
-				data.add_field("traffic_rx_packets", Val::Integer(traffic.rx.packets));
-				data.add_field("traffic_tx_packets", Val::Integer(traffic.tx.packets));
-
-				data.add_field("traffic_forwarded_bytes", Val::Integer(traffic.forward.bytes));
-				data.add_field("traffic_forwarded_bytes", Val::Integer(traffic.forward.bytes));
-				data.add_field("traffic_forwarded_packets", Val::Integer(traffic.forward.packets));
-				data.add_field("traffic_forwarded_packets", Val::Integer(traffic.forward.packets));
-			}
-		}
-	}
 
 	#[derive(Debug, Clone, Default)]
 	pub struct Stats {

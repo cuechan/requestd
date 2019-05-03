@@ -8,20 +8,20 @@ use log::{error};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
 	pub db: DbConfig,
-	pub sources: SourcesConfig,
+	pub sources: Vec<Source>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DbConfig {
-	pub host: String,
-	pub port: u16,
+	pub influx: String,
+	pub postgres: String,
 	pub user: String,
 	pub password: String,
 	pub database: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SourcesConfig {
+pub struct Source {
 	pub graph_url: String,
 	pub nodes_url: String,
 }
@@ -54,8 +54,7 @@ impl DbConfig {
 	pub fn connection_params(&self) -> ConnectParams {
 		ConnectParams::builder()
 			.user(&self.user, Some(&self.password))
-			.port(self.port)
 			.database(&self.database)
-			.build(Host::Tcp(self.host.clone()))
+			.build(Host::Tcp(self.postgres.clone()))
 	}
 }

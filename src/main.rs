@@ -15,6 +15,8 @@ pub mod collector;
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
+pub const SQLITEDB: &str = "ffhl.db";
+pub const DBDIR: &str = "db/";
 
 fn main() {
 
@@ -61,6 +63,8 @@ pub fn convert_to_influx(config: &config::Config) {
 	// 	config.db.database.clone()
 	// );
 
+	debug!("open/create sqlite database");
+	// let sqlite = rusqlite::Connection::open_in_memory().unwrap();
 
 	let psql = postgres::Connection::connect(
 		config.db.connection_params(),
@@ -68,46 +72,68 @@ pub fn convert_to_influx(config: &config::Config) {
 	).unwrap();
 
 
-	let rows = psql.query(&format!("
-		SELECT *
-		FROM {0}
-		", TABLE),
-		&[]
-	).unwrap();
+	let mut offset = 0;
+	let limit = 500;
 
-	let count = rows.len();
-
-	debug!("open/create sqlite database");
-	let sqlite = rusqlite::Connection::open("./ffhl-nodes.db").unwrap();
-	// let sqlite = rusqlite::Connection::open_in_memory().unwrap();
-
-
-	sqlite.execute(&format!("
-		CREATE TABLE IF NOT EXISTS {0} (
-			_time INTEGER NOT NULL,
-			timestamp INTEGER NOT NULL,
-			data TEXT NOT NULL
-		);", TABLE),
-		sqlite::NO_PARAMS
-	).unwrap();
+	loop {
+		let rows = psql.query(&format!("
+			SELECT data, timestamp
+			FROM {0}
+			LIMIT {1}
+			OFFSET {2}", TABLE, limit, offset),
+			&[]
+		).unwrap();
 
 
+		let count = rows.len();
 
-	for (i, row) in rows.into_iter().enumerate() {
-		let value: serde_json::Value = row.get("data");
-		let time_tz: DateTime<Utc> = row.get("timestamp");
-		let time: DateTime<Utc> = row.get("_time");
+		for (i, row) in rows.into_iter().enumerate() {
+			let value: serde_json::Value = row.get("data");
+			let time_tz: DateTime<Utc> = row.get("timestamp");
 
-		if i % 10 == 0 {
-			info!("converting... {}%", (i/count) as f64 * 100 as f64);
+			let nodeid = value.as_object()
+				.unwrap()
+				.get("nodeinfo")
+				.unwrap()
+				.as_object()
+				.unwrap()
+				.get("node_id")
+				.unwrap()
+				.as_str()
+				.unwrap()
+				.to_string();
+
+			let sqlite = rusqlite::Connection::open(format!("{}/node-{}.db", DBDIR, nodeid)).unwrap();
+
+			sqlite.execute(&format!("
+				CREATE TABLE IF NOT EXISTS {0} (
+					timestamp INTEGER NOT NULL,
+					data TEXT NOT NULL
+				);", TABLE),
+				sqlite::NO_PARAMS
+			).unwrap();
+
+
+
+
+			sqlite.execute("
+				INSERT INTO nodes (timestamp, data)
+				VALUES (?1, ?2)",
+				&[&time_tz.timestamp(), &serde_json::to_string(&value).unwrap() as &dyn sqlite::ToSql]
+			).unwrap();
+
+			if i % 10 == 0 {
+				info!("converting... {}/{}", i, count);
+			}
 		}
 
+		if count < limit {
+			println!("finished");
+			break;
+		}
 
-		sqlite.execute("
-			INSERT INTO nodes (_time, timestamp, data)
-			VALUES (?1, ?2, ?3)",
-			&[&time.timestamp(), &time_tz.timestamp(), &serde_json::to_string(&value).unwrap() as &dyn sqlite::ToSql ]
-		).unwrap();
+		offset += limit;
+
 	}
 
 
