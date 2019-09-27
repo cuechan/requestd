@@ -5,17 +5,19 @@ authors = ["Paul Maruhn <paulmaruhn@posteo.de>"]
 edition = "2018"
 
 [dependencies]
-curl = "0.4.19"
+curl = "0.4.23"
 postgres = {version = "0.15.2", features = ["with-serde_json", "with-chrono", "with-eui48"]}
 toml = "0.4.10"
-serde_json = "1.0.38"
-serde = {version = "1.0.88", features = ["derive"] }
+serde_json = "1.0.40"
+serde = {version = "1.0.100", features = ["derive"] }
 clap = "2.32.0"
-reqwest = "0.9.1"
+reqwest = "0.9.20"
 chrono = {version = "0.4.6", features = ["serde"]}
 # influx_db_client = {path = "../InfluxDBClient-rs", version = "0.3.6"}
 influx_db_client = "0.3.6"
 log = "0.4.0"
 pretty_env_logger = "0.3.0"
 eui48 = "0.3"
-rusqlite = "0.17.0"
+rusqlite = "0.20.0"
+ffhl_multicast = {path = "ffhl-multicast"}
+crossbeam-channel = "0.3.9"
