@@ -4,4 +4,4 @@
 
 /collector.toml
 config.toml
-*.sql
+*.db
