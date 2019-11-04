@@ -1,22 +1,24 @@
-use std::net::{UdpSocket, Ipv6Addr, SocketAddr,SocketAddrV6};
-use std::thread;
-use std::time::Duration;
+use chrono::{Utc};
+use crate::model;
+use crossbeam_channel::{unbounded, Receiver, Sender};
+use flate2::read::DeflateDecoder;
+use libc;
 use libflate;
 use libflate::deflate::Decoder;
-use flate2::read::DeflateDecoder;
-use std::io::Read;
-use std::io::Cursor;
 use log::{error, warn, info, debug, trace};
-use libc;
-use std::string::ToString;
-use std::sync::{Mutex, Arc};
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use std::io::ErrorKind;
 use serde_json as json;
 use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use std::io::Cursor;
+use std::io::ErrorKind;
+use std::io::Read;
+use std::net::{UdpSocket, Ipv6Addr, SocketAddr,SocketAddrV6};
+use std::string::ToString;
+use std::sync::{Mutex, Arc};
+use std::thread;
+use std::time::Duration;
+use serde_json::json;
 
-
-const CMD: &str = "GET nodeinfo";
 const MLTCST_GROUP: &str = "ff02::2:1001";
 const MLTCST_IFACE: u32 = 3;
 const PORT: u16 = 16000;
@@ -46,9 +48,8 @@ type SharedReceiverLoopStatus = Arc<Mutex<ReceiverLoopStatus>>;
 
 
 impl ResponderService {
-
 	/// Request a specific response
-	pub fn request(&self, what: RequestType) {
+	pub fn request(&self, what: RecordType) {
 		let address = SocketAddrV6::new(
 			MLTCST_GROUP.parse().unwrap(),
 			1001,
@@ -137,15 +138,14 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 		drop(status);
 
 		if let Err(ref e) = recv_result {
-			if e.kind() == ErrorKind::WouldBlock {
-				trace!("no data");
-			}
-			else {
+			if e.kind() != ErrorKind::WouldBlock {
 				warn!("unknown error occured");
+				error!("{:#?}", e.kind());
 			}
 
 			thread::sleep(Duration::from_secs(5));
-			continue
+			continue;
+
 		};
 
 
@@ -154,10 +154,9 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 		let mut response = String::new();
 		DeflateDecoder::new(&data[..bytes_read]).read_to_string(&mut response).unwrap();
 
+		// trace!("received data: {}", response);
 
-		debug!("received data: {}", response);
-
-		let json_ = match json::from_str(&response) {
+		let json_: Value = match json::from_str(&response) {
 			Err(e) => {
 				error!("can't parse json {}", e);
 				continue;
@@ -166,30 +165,70 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 		};
 
 
-		let resp = ResponddResponse {
-			remote: remote,
-			response: json_
-		};
+		// seperate different records
 
-		tx.send(resp).unwrap();
+		// let data = json::from_value::<HashMap<RecordType, Value>>(node_response.response.clone()).unwrap();
+
+		// let mut record;
+		if !json_.is_object() {
+			warn!("received incompatible data");
+			warn!("received data is not a json object");
+			continue;
+		}
+
+		let records = separate_records(json_).unwrap();
+
+		for recs in records {
+			let resp = ResponddResponse {
+				timestamp: Utc::now().timestamp(),
+				remote: remote,
+				response: recs
+			};
+
+			tx.send(resp).unwrap();
+		}
+
 	}
 }
 
 
-#[derive(Debug, Clone)]
-pub enum RequestType {
-	Nodeinfo,
-	Statisitcs,
-	Neighbors
+fn separate_records(json: Value) -> Result<Vec<Value>, Error> {
+	let mut records = vec![];
+
+	for (key, val) in json.as_object().unwrap().into_iter() {
+		records.push(json!({
+			key: val
+		}));
+	}
+
+	Ok(records)
 }
 
 
-impl ToString for RequestType {
+
+#[derive(Clone, Debug)]
+pub enum Error {
+
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+pub enum RecordType {
+	#[serde(rename = "nodeinfo")]
+	Nodeinfo,
+	#[serde(rename = "statistics")]
+	Statisitcs,
+	#[serde(rename = "neighbours")]
+	Neighbours
+}
+
+
+impl ToString for RecordType {
 	fn to_string(&self) -> String {
 		match self {
 			Self::Nodeinfo => "nodeinfo".to_owned(),
 			Self::Statisitcs => "statistics".to_owned(),
-			Self::Neighbors => "neighbours".to_owned(),
+			Self::Neighbours => "neighbours".to_owned(),
 		}
 	}
 }
@@ -199,6 +238,7 @@ impl ToString for RequestType {
 
 #[derive(Debug, Clone)]
 pub struct ResponddResponse {
+	pub timestamp: i64,
 	/// remote address
 	pub remote: SocketAddr,
 	/// the data

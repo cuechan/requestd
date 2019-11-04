@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
 use std::process;
+use serde;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {

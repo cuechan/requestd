@@ -1,39 +1,37 @@
 use chrono::DateTime;
 use chrono::NaiveDateTime;
 use chrono::Utc;
-use serde_json::Value;
-use serde;
+use influx_db_client::keys::Point;
+use influx_db_client::Value as Val;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::default::Default;
 use std::ops;
 
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Response {
-	#[serde(rename = "nodeinfo")]
-	Nodeinfo(Nodeinfo),
-	#[serde(rename = "statistics")]
-	Statistics(Statistics),
-	#[serde(rename = "neighbours")]
-	Neighbors(Neighbours),
+pub struct Hopglass2 {
+    pub version: i64,
+    pub nodes: Vec<Node>,
+    pub timestamp: DateTime<Utc>,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Neighbours {
-
+pub struct Node {
+    pub nodeinfo: Nodeinfo,
+    pub flags: Flags,
+    pub statistics: Statistics,
+    pub lastseen: DateTime<Utc>,
+    pub firstseen: DateTime<Utc>,
 }
 
-
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Nodeinfo {
-    pub node_id: String,
     pub software: Option<Software>,
     pub network: Option<Network>,
     pub location: Option<Location>,
     pub owner: Option<Owner>,
     pub system: Option<System>,
+    pub node_id: String,
     pub hostname: String,
     pub hardware: Option<Hardware>,
 }
@@ -158,7 +156,7 @@ pub struct Traffic {
     pub tx: TrafficIO,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrafficIO {
     pub bytes: i64,
     pub packets: i64,
@@ -177,4 +175,62 @@ pub struct Airtime {
     pub tx: f64,
     pub wait: f64,
     pub free: f64,
+}
+
+impl ops::AddAssign for Traffic {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            forward: self.forward.clone() + other.forward,
+            mgmt_rx: self.mgmt_rx.clone() + other.mgmt_rx,
+            mgmt_tx: self.mgmt_tx.clone() + other.mgmt_tx,
+            rx: self.rx.clone() + other.rx,
+            tx: self.tx.clone() + other.tx,
+        }
+    }
+}
+
+impl Default for TrafficIO {
+    fn default() -> Self {
+        Self {
+            bytes: 0,
+            packets: 0,
+            dropped: Some(0),
+        }
+    }
+}
+
+impl ops::Add for Traffic {
+    type Output = Traffic;
+
+    fn add(self, other: Self::Output) -> Self::Output {
+        Self {
+            forward: self.forward + other.forward,
+            mgmt_rx: self.mgmt_rx + other.mgmt_rx,
+            mgmt_tx: self.mgmt_tx + other.mgmt_tx,
+            rx: self.rx + other.rx,
+            tx: self.tx + other.tx,
+        }
+    }
+}
+
+impl ops::Add for TrafficIO {
+    type Output = TrafficIO;
+
+    fn add(self, other: Self::Output) -> Self::Output {
+        Self {
+            bytes: self.bytes + other.bytes,
+            packets: self.packets + other.packets,
+            dropped: Some(self.dropped.unwrap_or(0) + other.dropped.unwrap_or(0)),
+        }
+    }
+}
+
+impl ops::AddAssign for TrafficIO {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            bytes: self.bytes + other.bytes,
+            packets: self.packets + other.packets,
+            dropped: Some(self.dropped.unwrap_or(0) + other.dropped.unwrap_or(0)),
+        }
+    }
 }
