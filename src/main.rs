@@ -62,7 +62,7 @@ fn main() {
 			cmd_ls_nodes(m.unwrap().clone());
 		},
 		("collect", _m) => {
-			cmd_collect(&CONFIG);
+			cmd_collect();
 		}
 		_ => {
 			error!("not a valid Command. Try --help");
@@ -74,17 +74,16 @@ fn main() {
 
 
 
-fn cmd_collect(config: &Config) {
-	let requester = multicast::ResponderService::start(&config.respondd.interface, config.respondd.interval);
+fn cmd_collect() {
+	let requester = multicast::ResponderService::start(&CONFIG.respondd.interface, CONFIG.respondd.interval);
 	let receiver = requester.get_receiver();
 
-	let respondd = config.respondd.clone();
 	thread::spawn(move || {
 		loop {
 			debug!("request new data");
-			requester.request(&respondd.categories);
+			requester.request(&CONFIG.respondd.categories);
 
-			thread::sleep(Duration::from_secs(respondd.interval));
+			thread::sleep(Duration::from_secs(CONFIG.respondd.interval));
 		}
 	});
 

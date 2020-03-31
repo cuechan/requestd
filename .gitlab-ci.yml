@@ -4,9 +4,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
 
 before_script:
-  - git submodule init
-  - git submodule update --recursive
-  - rustup default nightly
+  - apt update && apt install libzmq3-dev:amd64
 
 cache:
   paths:

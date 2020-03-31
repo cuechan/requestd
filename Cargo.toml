@@ -9,7 +9,6 @@ chrono = {version = "0.4", features = ["serde"]}
 clap = "2.33"
 crossbeam-channel = "0.4"
 curl = "0.4"
-# eui48 = "0.4"
 flate2 = "1.0"
 libc = "0.2"
 log = "0.4"
@@ -18,14 +17,13 @@ rusqlite = {version = "0.21", features = ["chrono", "serde_json"]}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 serde_yaml = "0.8"
-# toml = "0.5"
 zmq = "0.9.2"
 jq-rs = {version = "0.4.1", features = ["bundled"]}
 lazy_static = "1.4"
 
 
-# [profile.release]
-# panic="abort"
+[profile.release]
+panic="abort"
 
 
 [package.metadata.deb]

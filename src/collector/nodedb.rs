@@ -35,6 +35,7 @@ impl NodeDb {
 		let db = sqlite::Connection::open(DATABASE_PATH).unwrap();
 		db.execute_batch(include_str!("../init_db.sql")).unwrap();
 
+		// disable synchronization. too slow
 		db.pragma(None, "synchronous", &"OFF".to_string(), |_| Ok(())).unwrap();
 
 		Self {
@@ -98,7 +99,7 @@ impl NodeDb {
 
 
 	pub fn get_all_nodes(&mut self) -> Vec<Node> {
-		let mut db = self.db.lock().unwrap();
+		let db = self.db.lock().unwrap();
 		let mut stmt = db.prepare("SELECT * FROM nodes").unwrap();
 
 		stmt.query_map(NO_PARAMS, |row| Ok(Node::from_row(row)))
