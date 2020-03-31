@@ -4,7 +4,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
 
 before_script:
-  - apt update && apt install libzmq3-dev:amd64
+  - apt update && apt install -y libzmq3-dev:amd64
 
 cache:
   paths:
