@@ -1,7 +1,7 @@
 FROM debian:sid
 
 RUN apt-get update
-RUN apt-get install -y postgresql cargo build-essential libssl-dev
+RUN apt-get install -y cargo build-essential libssl-dev
 
 COPY . /ffhl-collector
 

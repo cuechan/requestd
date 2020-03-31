@@ -1,30 +1,19 @@
-use chrono::{Utc};
-use crate::model;
+use chrono::Utc;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use flate2::read::DeflateDecoder;
 use libc;
-use libflate;
-use libflate::deflate::Decoder;
+#[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 use serde_json as json;
 use serde_json::Value;
-use serde::{Deserialize, Serialize};
-use std::io::Cursor;
 use std::io::ErrorKind;
 use std::io::Read;
-use std::net::{UdpSocket, Ipv6Addr, SocketAddr,SocketAddrV6};
-use std::string::ToString;
+use std::net::{UdpSocket, SocketAddr,SocketAddrV6};
 use std::sync::{Mutex, Arc};
 use std::thread;
 use std::time::Duration;
-use serde_json::json;
-
-const MLTCST_GROUP: &str = "ff02::2:1001";
-const MLTCST_IFACE: u32 = 3;
-const PORT: u16 = 16000;
-
-
-
+use crate::CONFIG;
+use crate::Timestamp;
 
 /// The service object that can be used to
 /// request data or stop the thread
@@ -38,6 +27,7 @@ pub struct ResponderService {
 
 
 struct ReceiverLoopStatus {
+	#[allow(dead_code)]
 	interval: u64,
 	running: bool,
 	socket: UdpSocket,
@@ -49,23 +39,20 @@ type SharedReceiverLoopStatus = Arc<Mutex<ReceiverLoopStatus>>;
 
 impl ResponderService {
 	/// Request a specific response
-	pub fn request(&self, what: RecordType) {
+	pub fn request(&self, what: &Vec<String>) {
 		let address = SocketAddrV6::new(
-			MLTCST_GROUP.parse().unwrap(),
+			CONFIG.respondd.multicast_address.parse().unwrap(),
 			1001,
 			0,
 			self.interface
 		);
 
-		trace!("requesting {} at {}", what.to_string(), address);
+		trace!("requesting {:?} at {}", what, address);
 
 		self.status.lock().unwrap().socket.send_to(
-			format!("GET {}", what.to_string()).as_bytes(),
+			format!("GET {}", what.join(" ")).as_bytes(),
 			address
 		).unwrap();
-
-
-		trace!("request sent");
 	}
 
 	/// get the a receiver where all parsed messages will pop out
@@ -99,6 +86,8 @@ impl ResponderService {
 		let handle = thread::spawn(move || {
 			receiver_loop(stat, tx)
 		});
+
+		trace!("starting multicast service: scopeid={}", iface_n);
 
 		Self {
 			interface: iface_n,
@@ -145,7 +134,6 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 
 			thread::sleep(Duration::from_secs(5));
 			continue;
-
 		};
 
 
@@ -165,43 +153,22 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 		};
 
 
-		// seperate different records
-
-		// let data = json::from_value::<HashMap<RecordType, Value>>(node_response.response.clone()).unwrap();
+		// trace!("record: \n{:#?}", json_);
 
 		// let mut record;
 		if !json_.is_object() {
-			warn!("received incompatible data");
-			warn!("received data is not a json object");
+			warn!("received incompatible data: not a json object");
 			continue;
 		}
 
-		let records = separate_records(json_).unwrap();
+		let resp = ResponddResponse {
+			timestamp: Utc::now(),
+			remote: remote,
+			response: json_
+		};
 
-		for recs in records {
-			let resp = ResponddResponse {
-				timestamp: Utc::now().timestamp(),
-				remote: remote,
-				response: recs
-			};
-
-			tx.send(resp).unwrap();
-		}
-
+		tx.send(resp).unwrap();
 	}
-}
-
-
-fn separate_records(json: Value) -> Result<Vec<Value>, Error> {
-	let mut records = vec![];
-
-	for (key, val) in json.as_object().unwrap().into_iter() {
-		records.push(json!({
-			key: val
-		}));
-	}
-
-	Ok(records)
 }
 
 
@@ -212,33 +179,9 @@ pub enum Error {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
-pub enum RecordType {
-	#[serde(rename = "nodeinfo")]
-	Nodeinfo,
-	#[serde(rename = "statistics")]
-	Statisitcs,
-	#[serde(rename = "neighbours")]
-	Neighbours
-}
-
-
-impl ToString for RecordType {
-	fn to_string(&self) -> String {
-		match self {
-			Self::Nodeinfo => "nodeinfo".to_owned(),
-			Self::Statisitcs => "statistics".to_owned(),
-			Self::Neighbours => "neighbours".to_owned(),
-		}
-	}
-}
-
-
-
-
 #[derive(Debug, Clone)]
 pub struct ResponddResponse {
-	pub timestamp: i64,
+	pub timestamp: Timestamp,
 	/// remote address
 	pub remote: SocketAddr,
 	/// the data
