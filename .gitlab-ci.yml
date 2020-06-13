@@ -41,6 +41,7 @@ test:test:
 deb_package:
   stage: deploy
   script:
+  - cargo install cargo-deb
   - cargo deb
   - cp -r target/doc/* public/
   artifacts:
