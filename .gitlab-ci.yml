@@ -21,16 +21,10 @@ build:build:
   script:
   - cargo update
   - cargo build
-
-build:docs:
-  stage: build
-  allow_failure: true
   artifacts:
     paths:
     - target
-  script:
-  - cargo update
-  - cargo doc
+
 
 test:test:
   stage: test
@@ -39,23 +33,22 @@ test:test:
 
 
 deb_package:
-  stage: deploy
+  stage: build
   script:
   - cargo install cargo-deb
   - cargo deb
-  - cp -r target/doc/* public/
   artifacts:
     paths:
-    - target/debian/
+    - target
 
 
 pages:
   stage: deploy
   dependencies:
-  - build:docs
+  - deb_package
   script:
-  - mkdir public
-  - cp -r target/doc/* public/
+  - mkdir -p public
+  - cp -r target/deb/*.deb public/ffhl-collector_latest.deb
   artifacts:
     paths:
     - public
