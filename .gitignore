@@ -3,6 +3,6 @@
 /.vscode
 
 /collector.toml
-config.toml
+config*.yml
 *.db
 *.bk

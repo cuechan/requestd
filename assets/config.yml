@@ -1,5 +1,5 @@
 respondd:
-  interface: "enp6s0"
+  interface: "ffhl"
   # https://gluon.readthedocs.io/en/v2020.1.x/features/monitoring.html#gluon-respondd
   categories:
     - "nodeinfo"
@@ -8,7 +8,7 @@ respondd:
   interval: 60
 
 database:
-  dbfile: ./nodes.db
+  dbfile: /var/lib/ffhl-collector/nodes.db
   min_active: 1209600
   offline_thresh: 300
   # evaluate database every n seconds (searching for offline nodes)
@@ -20,7 +20,7 @@ events:
   # the last response from a node will be send to stdin of your script
   #
   new_node:
-    - exec: ./test.py
+    - exec: /var/lib/ffhl-collector/hooks/test.py
       # you can make things a bit easier with
       # setting env variables by providing a jq[0] filter
       # remember that these filters can return an empty result
@@ -31,11 +31,11 @@ events:
         NODE_fastd: .nodeinfo.software.fastd.enabled
   # triggered after response from a node
   update:
-    - exec: ./test.py
+    - exec: /var/lib/ffhl-collector/hooks/test.py
   online_after_offline:
-    - exec: ./test.py
+    - exec: /var/lib/ffhl-collector/hooks/test.py
   node_offline:
-    - exec: ./test.py
+    - exec: /var/lib/ffhl-collector/hooks/node_offline.py
 
 
 # [0] https://stedolan.github.io/jq/

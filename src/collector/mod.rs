@@ -1,8 +1,10 @@
+#![allow(unused_must_use)]
+#![allow(unused_imports)]
+
 use crate::config;
 use crate::config::Config;
 use crate::NodeResponse;
 use jq_rs as jq;
-#[allow(unused_imports)]
 use log::{debug, error, warn, info, trace};
 use nodedb::Node;
 use serde_json as json;
@@ -87,6 +89,7 @@ impl Collector {
 		trace!("Node: {:#?}", nodedata.nodeid);
 
 		let node = if !self.db.is_known(&nodedata.nodeid) {
+			trace!("Node is not known");
 			self.db.insert_node(&nodedata).unwrap();
 			let node = self.db.get_node(&nodedata.nodeid).unwrap();
 
@@ -94,6 +97,7 @@ impl Collector {
 			node
 		}
 		else {
+			trace!("We know this node");
 			self.db.get_node(&nodedata.nodeid).unwrap()
 		};
 
@@ -149,7 +153,7 @@ impl EventRunner {
 					}
 			},
 			Event::NodeUpdate => {
-				for hook in &CONFIG.events.new_node {
+				for hook in &CONFIG.events.update {
 					self.threads.send((hook.clone(), n.clone())).unwrap();
 				}
 			}
@@ -171,10 +175,11 @@ fn hook_worker(receiver: Receiver<(config::Event, Node)>) {
 // 		sqlite::Connection::open(&CONFIG.database.dbfile).unwrap()
 // 	)));
 
-	for (e, n) in receiver {
+	for (event, n) in receiver {
 		// trace!("recieved event: {:#?}", e);
-		event_trigger(e, n).map_err(|e| {
-			error!("running hook failed: {}", e);
+		#[allow(unused_must_use)]
+		event_trigger(event.clone(), n).map_err(|e| {
+			error!("running hook '{}' failed: {}", event.exec, e);
 		});
 	}
 }
@@ -208,6 +213,7 @@ pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 
 	let stdin = cmd.stdin.as_mut().expect("can't get stdin");
 
+	#[allow(must_use)]
 	json::to_writer(stdin, &n.last_response);
 
 	cmd.wait()?;
