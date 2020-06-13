@@ -1,5 +1,6 @@
 // SQL only allowed here!!!
 
+#![allow(unused_imports)]
 use chrono;
 use chrono::DateTime;
 use chrono::Duration;
@@ -7,7 +8,6 @@ use chrono::Utc;
 use crate::CONFIG;
 use crate::DATABASE_PATH;
 use crate::NodeResponse;
-#[allow(unused_imports)]
 use log::{debug, error, warn, info, trace};
 use rusqlite as sqlite;
 use rusqlite::params;
@@ -19,10 +19,7 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 use rusqlite::types::FromSqlError;
 use sqlite::types::ToSqlOutput;
-
-
-pub type NodeId = String;
-
+use crate::NodeId;
 
 #[derive(Clone)]
 pub struct NodeDb {

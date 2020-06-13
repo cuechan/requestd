@@ -1,8 +1,9 @@
 [package]
 name = "ffhl-collector"
-version = "0.1.0"
+version = "0.0.0"
 authors = ["Paul Maruhn <paulmaruhn@posteo.de>"]
 edition = "2018"
+homepage = "https://gitlab.com/freifunk-luebeck/ffhl-stats"
 
 [dependencies]
 chrono = {version = "0.4", features = ["serde"]}

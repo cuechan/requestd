@@ -103,7 +103,6 @@ impl Collector {
 		}
 
 		self.db.insert_node(&nodedata).unwrap();
-
 		self.er.push_event(Event::NodeUpdate, node);
 	}
 }

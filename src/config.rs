@@ -4,11 +4,13 @@ use std::io::Read;
 use std::process;
 use serde;
 use serde_yaml as yaml;
-use crate::DEFAULT_CONF_FILE;
+use crate::DEFAULT_CONF_FILES;
 use crate::DEFAULT_MIN_ACTIVE;
 use crate::DEFAULT_OFFLINE_THRESH;
 use std::collections::HashMap;
 use log::{error, warn, info, debug, trace};
+// use std::fs::File;
+use std::path;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -22,7 +24,7 @@ impl Config {
 	pub fn load_config(matches: &clap::ArgMatches) -> Result<Self, yaml::Error> {
 		let path = matches
 			.value_of("config")
-			.or(Some(DEFAULT_CONF_FILE))
+			.or(get_first_file_found(DEFAULT_CONF_FILES))
 			.unwrap();
 
 		let mut config_str = String::new();
@@ -37,26 +39,26 @@ impl Config {
 			}
 		}
 
-		let mut conf: Self = yaml::from_str(&config_str)?;
-
-		if let Some(interval) = matches.value_of("interval") {
-			conf.respondd.interval = interval.parse().unwrap();
-		}
-
-		if let Some(iface) = matches.value_of("iface") {
-			conf.respondd.interface = iface.to_owned();
-		}
+		let conf: Self = yaml::from_str(&config_str)?;
 
 
-		if !(conf.database.offline_thresh > conf.respondd.interval) {
+		if !(conf.database.offline_thresh < conf.respondd.interval) {
 			warn!("`database.offline_thresh` should be greate than `respondd.interval`");
 		}
-
 
 		Ok(conf)
 	}
 }
 
+fn get_first_file_found<'a>(files: &[&'a str]) -> Option<&'a str> {
+	for file in files {
+		if path::Path::new(file).is_file() {
+			return Some(file);
+		}
+	}
+
+	None
+}
 
 
 impl Default for Config {
@@ -99,7 +101,6 @@ pub struct Respondd {
 	pub interface: String,
 	pub timeout: u64,
 	pub interval: u64,
-	#[serde(rename = "multicastaddress")]
 	pub multicast_address: String,
 	pub categories: Vec<String>,
 }

@@ -18,7 +18,6 @@ use std::process::exit;
 use std::io;
 use std::thread;
 use std::time::Duration;
-use nodedb::NodeId;
 use lazy_static::lazy_static;
 use nodedb::Node;
 
@@ -31,13 +30,15 @@ pub mod output;
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
 pub const DATABASE_PATH: &str = "./nodes.db";
-pub const DEFAULT_CONF_FILE: &str = "./config.yml";
+pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/ffhl-collector.yml", "./config.yml"];
 pub const DEFAULT_MIN_ACTIVE: u64 = 1209600;
 pub const DEFAULT_OFFLINE_THRESH: u64 = 120;
 pub const HOOK_RUNNER: u64 = 4;
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
+pub type NodeId = String;
+
 
 
 lazy_static!{
@@ -97,7 +98,9 @@ fn cmd_collect() {
 			continue;
 		}
 
-		let nodeid = if let Some(nodeid) = get_nodeid_from_response_data(&node_response.response) {nodeid}
+		let nodeid = if let Some(nodeid) = get_nodeid_from_response_data(&node_response.response) {
+			nodeid
+		}
 		else {
 			warn!("a node at {} has no nodeid", node_response.remote.to_string());
 			continue;
@@ -119,7 +122,7 @@ fn cmd_collect() {
 
 #[derive(Clone, Debug)]
 pub struct NodeResponse {
-	nodeid: String,
+	nodeid: NodeId,
 	remote: IpAddr,
 	timestamp: Timestamp,
 	data: NodeData,
@@ -159,10 +162,9 @@ pub fn init_db() -> sqlite::Connection {
 	db
 }
 
-
 fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
-	clap::App::new(APPNAME)
-		.version("0.0.0")
+	clap::App::new(env!("CARGO_PKG_NAME"))
+		.version(env!("CARGO_PKG_VERSION"))
 		.arg(
 			clap::Arg::with_name("config")
 				.short("c")
@@ -172,30 +174,6 @@ fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 				.validator(|x| match File::open(x) {
 					Err(e) => Err(e.to_string()),
 					Ok(_) => Ok(()),
-				}),
-		)
-		.arg(clap::Arg::with_name("iface")
-			.short("i")
-			.long("iface")
-			.help("respondd interface")
-			.takes_value(true)
-			.validator(|x| if_to_index(&x).map_or(Err("no interface".to_owned()), |_| Ok(()))),
-		)
-		.arg(
-			clap::Arg::with_name("quiet")
-				.short("q")
-				.long("quiet")
-				.help("disable output")
-				.takes_value(false),
-		)
-		.arg(
-			clap::Arg::with_name("interval")
-				.long("interval")
-				.help("multicast interval")
-				.takes_value(true)
-				.validator(|x| match x.parse::<u64>() {
-					Ok(_) => Ok(()),
-					Err(e) => Err(e.to_string()),
 				}),
 		)
 		.subcommand(

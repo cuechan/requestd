@@ -1,0 +1,41 @@
+respondd:
+  interface: "enp6s0"
+  # https://gluon.readthedocs.io/en/v2020.1.x/features/monitoring.html#gluon-respondd
+  categories:
+    - "nodeinfo"
+    - "statistics"
+    - "neighbours"
+  interval: 60
+
+database:
+  dbfile: ./nodes.db
+  min_active: 1209600
+  offline_thresh: 300
+  # evaluate database every n seconds (searching for offline nodes)
+  evaluate_every: 15
+
+
+events:
+  # triggered when a new node appears
+  # the last response from a node will be send to stdin of your script
+  #
+  new_node:
+    - exec: ./test.py
+      # you can make things a bit easier with
+      # setting env variables by providing a jq[0] filter
+      # remember that these filters can return an empty result
+      vars:
+        NODE_contact_info: .nodeinfo.owner.contact
+        NODE_addresses: .nodeinfo.network.addresses
+        NODE_nproc: .nodeinfo.hardware.nproc
+        NODE_fastd: .nodeinfo.software.fastd.enabled
+  # triggered after response from a node
+  update:
+    - exec: ./test.py
+  online_after_offline:
+    - exec: ./test.py
+  node_offline:
+    - exec: ./test.py
+
+
+# [0] https://stedolan.github.io/jq/
