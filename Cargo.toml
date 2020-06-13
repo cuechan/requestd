@@ -28,3 +28,10 @@ panic="abort"
 
 [package.metadata.deb]
 name = "ffhl-collector"
+depends = "$auto"
+build-depends = "libsqlite3-dev libzmq3-dev"
+assets = [
+	["assets/ffhl-collector.service", "/etc/systemd/system/", "664"],
+	["assets/config.yml", "/etc/ffhl-collector.yml", "664"],
+	["target/release/ffhl-collector", "usr/bin/", "755"]
+]

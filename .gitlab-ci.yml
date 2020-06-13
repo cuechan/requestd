@@ -38,6 +38,16 @@ test:test:
   - cargo test
 
 
+deb_package:
+  stage: deploy
+  script:
+  - cargo deb
+  - cp -r target/doc/* public/
+  artifacts:
+    paths:
+    - target/debian/
+
+
 pages:
   stage: deploy
   dependencies:
