@@ -29,11 +29,13 @@ panic="abort"
 
 [package.metadata.deb]
 name = "ffhl-collector"
-depends = "$auto"
+depends = ""
 build-depends = "libsqlite3-dev libzmq3-dev"
 assets = [
 	["assets/ffhl-collector.service", "/etc/systemd/system/", "664"],
 	["assets/config.yml", "/etc/ffhl-collector.yml", "664"],
-	["assets/ffhl-collector", "/var/lib/", "750"],
+	["assets/hooks/new_node.py", "var/lib/ffhl-collector/", "775"],
+	["assets/hooks/offline.py", "var/lib/ffhl-collector/", "775"],
+	["assets/hooks/test.py", "var/lib/ffhl-collector/", "775"],
 	["target/release/ffhl-collector", "usr/bin/", "755"]
 ]
