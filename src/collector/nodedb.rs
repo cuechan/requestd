@@ -28,9 +28,9 @@ pub struct NodeDb {
 
 
 impl NodeDb {
-	pub fn new() -> Self {
-		let db = sqlite::Connection::open(DATABASE_PATH).unwrap();
-		db.execute_batch(include_str!("../init_db.sql")).unwrap();
+	pub fn new(path: &str) -> Self {
+		let db = sqlite::Connection::open(path).unwrap();
+		db.execute_batch(include_str!("./init_db.sql")).unwrap();
 
 		// disable synchronization. too slow
 		db.pragma(None, "synchronous", &"OFF".to_string(), |_| Ok(())).unwrap();
@@ -74,11 +74,11 @@ impl NodeDb {
 	pub fn insert_node(&mut self, n: &NodeResponse) -> Option<()> {
 		self.db.lock().unwrap().execute(
 			"INSERT INTO nodes (nodeid, lastseen, firstseen, status, lastaddress, lastresponse)
-			VALUES             (?1,     ?2,       ?2,        'Up',   ?3,          ?4)
+			VALUES             (?1,     ?2,       ?2,        '?5',   ?3,          ?4)
 			ON CONFLICT(nodeid) DO UPDATE SET
 			(lastseen, lastaddress, status, lastresponse) =
-			(?2,       ?3,          'Up',   ?4)",
-			params![n.nodeid, n.timestamp, n.remote.to_string(), n.data]
+			(?2,       ?3,          ?5,   ?4)",
+			params![n.nodeid, n.timestamp, n.remote.to_string(), n.data, NodeStatus::Up]
 		).map_err(|e| {
 			error!("sql error: {}", e);
 		}).unwrap();

@@ -49,7 +49,9 @@ impl ResponderService {
 
 		trace!("requesting {:?} at {}", what, address);
 
-		self.status.lock().unwrap().socket.send_to(
+		let ref socket = self.status.lock().unwrap().socket;
+
+		socket.send_to(
 			format!("GET {}", what.join(" ")).as_bytes(),
 			address
 		).unwrap();

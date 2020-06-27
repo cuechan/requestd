@@ -20,12 +20,14 @@ use std::thread;
 use std::time::Duration;
 use lazy_static::lazy_static;
 use nodedb::Node;
+use nodedb::NodeDb;
 
 pub mod collector;
 pub mod config;
 pub mod model;
 pub mod multicast;
 pub mod output;
+pub mod controlsocket;
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
@@ -56,6 +58,8 @@ fn main() {
 	pretty_env_logger::init();
 
 
+
+
 	trace!("config: \n{}", yaml::to_string(&*CONFIG).unwrap());
 
 	match ARGS.subcommand() {
@@ -64,6 +68,9 @@ fn main() {
 		},
 		("collect", _m) => {
 			cmd_collect();
+		}
+		("foo", _m) => {
+			error!("nothing to test right now");
 		}
 		_ => {
 			error!("not a valid Command. Try --help");
@@ -74,10 +81,17 @@ fn main() {
 
 
 
-
+// TODO: this needs a bit more/clearer structure
 fn cmd_collect() {
 	let requester = multicast::ResponderService::start(&CONFIG.respondd.interface, CONFIG.respondd.interval);
 	let receiver = requester.get_receiver();
+	let db = NodeDb::new(&CONFIG.database.dbfile);
+
+	// start the socket listener
+	let db_c = db.clone();
+	std::thread::spawn(move || {
+		controlsocket::start(db_c, &CONFIG.controlsocket);
+	});
 
 	thread::spawn(move || {
 		loop {
@@ -89,7 +103,7 @@ fn cmd_collect() {
 	});
 
 
-	let mut cllctr = Collector::new();
+	let mut cllctr = Collector::new(db);
 
 	for node_response in &receiver {
 		// do some checks
@@ -156,12 +170,6 @@ fn cmd_ls_nodes(_matches: clap::ArgMatches) {
 
 
 
-pub fn init_db() -> sqlite::Connection {
-	let db = sqlite::Connection::open(DATABASE_PATH).unwrap();
-	db.execute_batch(include_str!("./init_db.sql")).unwrap();
-	db
-}
-
 fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 	clap::App::new(env!("CARGO_PKG_NAME"))
 		.version(env!("CARGO_PKG_VERSION"))
@@ -182,6 +190,10 @@ fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 		.subcommand(
 			clap::SubCommand::with_name("ls-nodes")
 				.about("list all nodes")
+		)
+		.subcommand(
+			clap::SubCommand::with_name("foo")
+				.about("do foo things")
 		)
 }
 

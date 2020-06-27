@@ -18,6 +18,8 @@ pub struct Config {
 	pub database: DbConfig,
 	pub respondd: Respondd,
 	pub events: Events,
+	pub controlsocket: String,
+	pub concurrent_hooks: u64,
 }
 
 impl Config {
@@ -25,7 +27,7 @@ impl Config {
 		let path = matches
 			.value_of("config")
 			.or(get_first_file_found(DEFAULT_CONF_FILES))
-			.unwrap();
+			.expect("no config found");
 
 		let mut config_str = String::new();
 		match File::open(path) {
@@ -67,6 +69,8 @@ impl Default for Config {
 			database: DbConfig::default(),
 			respondd: Respondd::default(),
 			events: Events::default(),
+			controlsocket: "/tmp/requestd.sock".to_string(),
+			concurrent_hooks: 4
 		}
 	}
 }
@@ -127,7 +131,7 @@ impl Default for Respondd {
 pub struct Events {
 	pub new_node: Vec<Event>,
 	pub node_offline: Vec<Event>,
-	pub update: Vec<Event>,
+	pub node_update: Vec<Event>,
 	pub online_after_offline: Vec<Event>,
 }
 
@@ -136,7 +140,7 @@ impl Default for Events {
 		Self {
 			new_node: vec![],
 			node_offline: vec![],
-			update: vec![],
+			node_update: vec![],
 			online_after_offline: vec![],
 		}
 	}

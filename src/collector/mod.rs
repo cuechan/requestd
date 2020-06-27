@@ -1,6 +1,8 @@
 #![allow(unused_must_use)]
 #![allow(unused_imports)]
 
+pub mod nodedb;
+
 use crate::config;
 use crate::config::Config;
 use crate::NodeResponse;
@@ -19,13 +21,10 @@ use std::time::Duration;
 use crate::CONFIG;
 use std::sync::{Arc, Mutex};
 use rusqlite as sqlite;
-use triggerdb::Trigger;
 use nodedb::NodeStatus;
 use std::fmt::{self, Display};
 use crate::HOOK_RUNNER;
-
-pub mod nodedb;
-pub mod triggerdb;
+use nodedb::NodeDb;
 
 
 pub struct Collector {
@@ -61,8 +60,7 @@ impl Event {
 
 
 impl Collector {
-	pub fn new() -> Self {
-		let db = nodedb::NodeDb::new();
+	pub fn new(db: NodeDb) -> Self {
 		let er = EventRunner::new();
 
 		let mut db_copy = db.clone();
@@ -153,7 +151,7 @@ impl EventRunner {
 					}
 			},
 			Event::NodeUpdate => {
-				for hook in &CONFIG.events.update {
+				for hook in &CONFIG.events.node_update {
 					self.threads.send((hook.clone(), n.clone())).unwrap();
 				}
 			}
@@ -195,6 +193,8 @@ pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 			.unwrap();
 
 		// workaround because jq_rs does not support the -r flag
+		// True is converted to `1` and false to an empty string
+		// this is primarily for bash scripts
 		let val_nice = match json::from_str(&val).unwrap() {
 			Value::String(s) => s,
 			Value::Bool(b) if b => String::new(),
