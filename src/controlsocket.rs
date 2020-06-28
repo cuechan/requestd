@@ -25,7 +25,10 @@ pub fn start(mut db: NodeDb, address: &String) {
 		info!("a new connection from {:?}", addr);
 		let all_nodes = db.get_all_nodes();
 
-		json::to_writer(stream, &all_nodes).expect("error writing stream");
+		if let Err(e) = json::to_writer(stream, &all_nodes) {
+			error!("error writing stream: {}", e);
+			info!("you maybe want to check your script");
+		}
 
 		info!("bye!");
 	}
