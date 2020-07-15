@@ -39,7 +39,7 @@ deb_package:
   - cargo deb
   artifacts:
     paths:
-    - target
+    - target/deb
 
 
 pages:

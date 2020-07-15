@@ -1,14 +1,14 @@
+use crate::DEFAULT_CONF_FILES;
+use crate::DEFAULT_OFFLINE_THRESH;
+use crate::DEFAULT_REMOVE_THRESH;
+use log::{debug, error, info, trace, warn};
+use serde;
 use serde::{Deserialize, Serialize};
+use serde_yaml as yaml;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::process;
-use serde;
-use serde_yaml as yaml;
-use crate::DEFAULT_CONF_FILES;
-use crate::DEFAULT_MIN_ACTIVE;
-use crate::DEFAULT_OFFLINE_THRESH;
-use std::collections::HashMap;
-use log::{error, warn, info, debug, trace};
 // use std::fs::File;
 use std::path;
 
@@ -43,9 +43,8 @@ impl Config {
 
 		let conf: Self = yaml::from_str(&config_str)?;
 
-
-		if !(conf.database.offline_thresh < conf.respondd.interval) {
-			warn!("`database.offline_thresh` should be greate than `respondd.interval`");
+		if conf.database.offline_after < conf.respondd.interval {
+			warn!("`database.offline_after` should be greater than `respondd.interval`");
 		}
 
 		Ok(conf)
@@ -62,7 +61,6 @@ fn get_first_file_found<'a>(files: &[&'a str]) -> Option<&'a str> {
 	None
 }
 
-
 impl Default for Config {
 	fn default() -> Self {
 		Self {
@@ -70,34 +68,30 @@ impl Default for Config {
 			respondd: Respondd::default(),
 			events: Events::default(),
 			controlsocket: "/tmp/requestd.sock".to_string(),
-			concurrent_hooks: 4
+			concurrent_hooks: 4,
 		}
 	}
 }
-
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DbConfig {
 	pub dbfile: String,
-	pub min_active: u64,
-	pub offline_thresh: u64,
+	pub offline_after: u64,
+	pub remove_after: u64,
 	pub evaluate_every: u64,
 }
-
 
 impl Default for DbConfig {
 	fn default() -> Self {
 		Self {
 			dbfile: "./nodes.db".to_string(),
-			min_active: DEFAULT_MIN_ACTIVE,
-			offline_thresh: DEFAULT_OFFLINE_THRESH,
+			offline_after: DEFAULT_OFFLINE_THRESH,
+			remove_after: DEFAULT_REMOVE_THRESH,
 			evaluate_every: 15,
 		}
 	}
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -109,7 +103,6 @@ pub struct Respondd {
 	pub categories: Vec<String>,
 }
 
-
 impl Default for Respondd {
 	fn default() -> Self {
 		Self {
@@ -120,7 +113,7 @@ impl Default for Respondd {
 			categories: vec![
 				"nodeinfo".to_string(),
 				"statistics".to_string(),
-				"neighbours".to_string()
+				"neighbours".to_string(),
 			],
 		}
 	}
@@ -146,11 +139,10 @@ impl Default for Events {
 	}
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Event {
 	pub exec: String,
 	#[serde(default)]
-	pub vars: HashMap<String, String>
+	pub vars: HashMap<String, String>,
 }

@@ -6,4 +6,4 @@ import sys
 # read the data from stdin
 node = json.load(sys.stdin)
 
-print(f"Node {node['nodeinfo']['node_id']} is offline")
+print(f"Node is offline: {node['nodeinfo']['hostname']} ")

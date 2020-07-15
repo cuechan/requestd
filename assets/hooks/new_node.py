@@ -11,4 +11,4 @@ node = json.load(sys.stdin)
 # print(json.dumps(node, indent=4, sort_keys=True))
 
 
-print(f"A new Node!!! {node['nodeinfo']['node_id']}")
+print(f"New Node: {node['nodeinfo']['hostname']}")

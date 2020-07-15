@@ -1,71 +1,67 @@
 use chrono::{DateTime, Utc};
 use clap;
-use collector::Collector;
 use collector::nodedb;
+use collector::Collector;
 use config::Config;
+use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use multicast::if_to_index;
+use nodedb::Node;
+use nodedb::NodeDb;
 use pretty_env_logger;
 use rusqlite as sqlite;
 use rusqlite::NO_PARAMS;
 use serde_json as json;
 use serde_yaml as yaml;
 use std::fs::File;
+use std::io;
 use std::net::IpAddr;
 use std::process;
 use std::process::exit;
-use std::io;
 use std::thread;
 use std::time::Duration;
-use lazy_static::lazy_static;
-use nodedb::Node;
-use nodedb::NodeDb;
 
 pub mod collector;
 pub mod config;
+pub mod controlsocket;
 pub mod model;
 pub mod multicast;
 pub mod output;
-pub mod controlsocket;
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
 pub const DATABASE_PATH: &str = "./nodes.db";
 pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/ffhl-collector.yml", "./config.yml"];
-pub const DEFAULT_MIN_ACTIVE: u64 = 1209600;
 pub const DEFAULT_OFFLINE_THRESH: u64 = 120;
+pub const DEFAULT_REMOVE_THRESH: u64 = 2419200; // 4 weeks
 pub const HOOK_RUNNER: u64 = 4;
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
 pub type NodeId = String;
 
-
-
-lazy_static!{
+lazy_static! {
 	pub static ref ARGS: clap::ArgMatches<'static> = clap_app().get_matches();
 	pub static ref CONFIG: Config = {
-		config::Config::load_config(&ARGS).map_err(|e| {
-			error!("loading config: {}", e);
-			exit(1);
-		}).unwrap()
+		config::Config::load_config(&ARGS)
+			.map_err(|e| {
+				error!("loading config: {}", e);
+				exit(1);
+			})
+			.unwrap()
 	};
 }
 
-
 fn main() {
 	pretty_env_logger::init();
-
-
-
 
 	trace!("config: \n{}", yaml::to_string(&*CONFIG).unwrap());
 
 	match ARGS.subcommand() {
 		("ls-nodes", m) => {
 			cmd_ls_nodes(m.unwrap().clone());
-		},
+		}
 		("collect", _m) => {
 			cmd_collect();
 		}
@@ -79,8 +75,6 @@ fn main() {
 	}
 }
 
-
-
 // TODO: this needs a bit more/clearer structure
 fn cmd_collect() {
 	let requester = multicast::ResponderService::start(&CONFIG.respondd.interface, CONFIG.respondd.interval);
@@ -93,15 +87,12 @@ fn cmd_collect() {
 		controlsocket::start(db_c, &CONFIG.controlsocket);
 	});
 
-	thread::spawn(move || {
-		loop {
-			debug!("request new data");
-			requester.request(&CONFIG.respondd.categories);
+	thread::spawn(move || loop {
+		debug!("request new data");
+		requester.request(&CONFIG.respondd.categories);
 
-			thread::sleep(Duration::from_secs(CONFIG.respondd.interval));
-		}
+		thread::sleep(Duration::from_secs(CONFIG.respondd.interval));
 	});
-
 
 	let mut cllctr = Collector::new(db);
 
@@ -114,8 +105,7 @@ fn cmd_collect() {
 
 		let nodeid = if let Some(nodeid) = get_nodeid_from_response_data(&node_response.response) {
 			nodeid
-		}
-		else {
+		} else {
 			warn!("a node at {} has no nodeid", node_response.remote.to_string());
 			continue;
 		};
@@ -133,7 +123,6 @@ fn cmd_collect() {
 	}
 }
 
-
 #[derive(Clone, Debug)]
 pub struct NodeResponse {
 	nodeid: NodeId,
@@ -141,7 +130,6 @@ pub struct NodeResponse {
 	timestamp: Timestamp,
 	data: NodeData,
 }
-
 
 fn get_nodeid_from_response_data(data: &json::Value) -> Option<NodeId> {
 	data.as_object()
@@ -152,7 +140,6 @@ fn get_nodeid_from_response_data(data: &json::Value) -> Option<NodeId> {
 		.and_then(|n| n.as_str())
 		.and_then(|n| Some(n.to_string())) as Option<NodeId>
 }
-
 
 fn cmd_ls_nodes(_matches: clap::ArgMatches) {
 	let db = sqlite::Connection::open(DATABASE_PATH).unwrap();
@@ -168,8 +155,6 @@ fn cmd_ls_nodes(_matches: clap::ArgMatches) {
 	json::to_writer_pretty(io::stdout(), &nodes).unwrap();
 }
 
-
-
 fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 	clap::App::new(env!("CARGO_PKG_NAME"))
 		.version(env!("CARGO_PKG_VERSION"))
@@ -184,17 +169,9 @@ fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
 					Ok(_) => Ok(()),
 				}),
 		)
-		.subcommand(
-			clap::SubCommand::with_name("collect").about("collect and save data")
-		)
-		.subcommand(
-			clap::SubCommand::with_name("ls-nodes")
-				.about("list all nodes")
-		)
-		.subcommand(
-			clap::SubCommand::with_name("foo")
-				.about("do foo things")
-		)
+		.subcommand(clap::SubCommand::with_name("collect").about("collect and save data"))
+		.subcommand(clap::SubCommand::with_name("ls-nodes").about("list all nodes"))
+		.subcommand(clap::SubCommand::with_name("foo").about("do foo things"))
 }
 
 #[derive(Debug)]

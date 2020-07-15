@@ -1,19 +1,20 @@
+use crate::Timestamp;
+use crate::CONFIG;
 use chrono::Utc;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use flate2::read::DeflateDecoder;
 use libc;
 #[allow(unused_imports)]
-use log::{error, warn, info, debug, trace};
+use log::{debug, error, info, trace, warn};
 use serde_json as json;
 use serde_json::Value;
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::io::ErrorKind;
 use std::io::Read;
-use std::net::{UdpSocket, SocketAddr,SocketAddrV6};
-use std::sync::{Mutex, Arc};
+use std::net::{SocketAddr, SocketAddrV6, UdpSocket};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use crate::CONFIG;
-use crate::Timestamp;
 
 /// The service object that can be used to
 /// request data or stop the thread
@@ -24,18 +25,14 @@ pub struct ResponderService {
 	thread: thread::JoinHandle<()>,
 }
 
-
-
 struct ReceiverLoopStatus {
 	#[allow(dead_code)]
 	interval: u64,
 	running: bool,
-	socket: UdpSocket,
+	socket: Socket,
 }
 
 type SharedReceiverLoopStatus = Arc<Mutex<ReceiverLoopStatus>>;
-
-
 
 impl ResponderService {
 	/// Request a specific response
@@ -44,17 +41,16 @@ impl ResponderService {
 			CONFIG.respondd.multicast_address.parse().unwrap(),
 			1001,
 			0,
-			self.interface
+			self.interface,
 		);
 
 		trace!("requesting {:?} at {}", what, address);
 
 		let ref socket = self.status.lock().unwrap().socket;
 
-		socket.send_to(
-			format!("GET {}", what.join(" ")).as_bytes(),
-			address
-		).unwrap();
+		socket
+			.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(address))
+			.expect("can't send data");
 	}
 
 	/// get the a receiver where all parsed messages will pop out
@@ -69,13 +65,13 @@ impl ResponderService {
 
 		let (tx, rx) = unbounded::<ResponddResponse>();
 		let socket = {
-			let s = UdpSocket::bind("[::]:16000").unwrap();
+			// let s = Socket::new("[::]:16000").unwrap();
+			let s = Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp())).unwrap();
+			// s.set_nonblocking(true).unwrap();
 			s.set_nonblocking(true).unwrap();
 			// s.set_ttl(1).unwrap();
 			s
 		};
-
-
 
 		let status = Arc::new(Mutex::new(ReceiverLoopStatus {
 			interval: interval,
@@ -83,11 +79,8 @@ impl ResponderService {
 			socket: socket,
 		}));
 
-
 		let stat = status.clone();
-		let handle = thread::spawn(move || {
-			receiver_loop(stat, tx)
-		});
+		let handle = thread::spawn(move || receiver_loop(stat, tx));
 
 		trace!("starting multicast service: scopeid={}", iface_n);
 
@@ -99,16 +92,11 @@ impl ResponderService {
 		}
 	}
 
-
 	pub fn stop(self) {
 		self.status.lock().unwrap().running = false;
 		self.thread.join().unwrap();
 	}
 }
-
-
-
-
 
 /// request data from respondd
 fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddResponse>) {
@@ -120,7 +108,6 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 			drop(status);
 			return;
 		}
-
 
 		let mut data = [0; 65536];
 		let recv_result = status.socket.recv_from(&mut data);
@@ -138,11 +125,11 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 			continue;
 		};
 
-
 		let (bytes_read, remote) = recv_result.unwrap();
-		trace!("read {} bytes", bytes_read);
 		let mut response = String::new();
-		DeflateDecoder::new(&data[..bytes_read]).read_to_string(&mut response).unwrap();
+		DeflateDecoder::new(&data[..bytes_read])
+			.read_to_string(&mut response)
+			.unwrap();
 
 		// trace!("received data: {}", response);
 
@@ -150,10 +137,9 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 			Err(e) => {
 				error!("can't parse json {}", e);
 				continue;
-			},
-			Ok(r) => r
+			}
+			Ok(r) => r,
 		};
-
 
 		// trace!("record: \n{:#?}", json_);
 
@@ -165,21 +151,16 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 
 		let resp = ResponddResponse {
 			timestamp: Utc::now(),
-			remote: remote,
-			response: json_
+			remote: remote.as_std().expect("cant convert to std AockAddr"),
+			response: json_,
 		};
 
 		tx.send(resp).unwrap();
 	}
 }
 
-
-
 #[derive(Clone, Debug)]
-pub enum Error {
-
-}
-
+pub enum Error {}
 
 #[derive(Debug, Clone)]
 pub struct ResponddResponse {
@@ -190,13 +171,8 @@ pub struct ResponddResponse {
 	pub response: Value,
 }
 
-
-
-
 pub fn if_to_index(interface: &str) -> Option<u32> {
-	let i: u32 = unsafe {
-		libc::if_nametoindex(interface.as_ptr() as *const i8).into()
-	};
+	let i: u32 = unsafe { libc::if_nametoindex(interface.as_ptr() as *const i8).into() };
 
 	trace!("iface index {:#?}", i);
 

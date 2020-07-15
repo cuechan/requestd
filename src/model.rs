@@ -2,7 +2,6 @@ use serde;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Response {
 	#[serde(rename = "nodeinfo")]
@@ -13,13 +12,8 @@ pub enum Response {
 	Neighbors(Neighbours),
 }
 
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Neighbours {
-
-}
-
-
+pub struct Neighbours {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Nodeinfo {
@@ -144,8 +138,6 @@ pub struct Statistics {
 	pub traffic: Option<Traffic>,
 }
 
-
-
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClientsDetailed {
 	total: i64,
@@ -153,8 +145,6 @@ pub struct ClientsDetailed {
 	wifi24: i64,
 	wifi5: i64,
 }
-
-
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Traffic {

@@ -30,16 +30,16 @@ def get_all_nodes():
 
 data = get_all_nodes()
 
-print("""$TTL 600  ; 10 minutes
+print(f"""$TTL 600  ; 10 minutes
 @     IN SOA  srv01.luebeck.freifunk.net. info.luebeck.freifunk.net. (
-					%i ; serial
+					{time} ; serial
 					600        ; refresh (10min)
 					30         ; retry (30s)
 					3600       ; expire (1 hour)
 					60         ; minimum (1 minute)
 					)
 		NS srv01.luebeck.freifunk.net.
-			""" % time())
+			""")
 
 HostnameRegex = re.compile(ValidHostnameRegex)
 
