@@ -35,8 +35,11 @@ build-depends = "libsqlite3-dev libzmq3-dev"
 assets = [
 	["assets/ffhl-collector.service", "/etc/systemd/system/", "664"],
 	["assets/config.yml", "/etc/ffhl-collector.yml", "664"],
+	["target/release/ffhl-collector", "usr/bin/", "755"],
+	# hooks
 	["assets/hooks/new_node.py", "var/lib/ffhl-collector/", "775"],
 	["assets/hooks/offline.py", "var/lib/ffhl-collector/", "775"],
-	["assets/hooks/test.py", "var/lib/ffhl-collector/", "775"],
-	["target/release/ffhl-collector", "usr/bin/", "755"]
+	["assets/hooks/offline.py", "var/lib/ffhl-collector/", "775"],
+	["assets/hooks/hopglass.py", "var/lib/ffhl-collector/", "775"],
+	["assets/hooks/update.py", "var/lib/ffhl-collector/", "775"],
 ]
