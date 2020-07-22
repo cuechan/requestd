@@ -34,11 +34,12 @@ test:test:
 
 pages:
   stage: deploy
+  needs: ['build:build', 'test:test']
   script:
   - cargo install cargo-deb
   - mkdir -p public
   - cargo doc
-  - cp -t target/doc/* public/
+  - cp -r target/doc/* public/
   - cargo deb
   - cp -r target/debian/*.deb public/latest.deb
   artifacts:
