@@ -33,7 +33,7 @@ test:test:
 
 
 deb_package:
-  stage: build
+  stage: deploy
   script:
   - cargo install cargo-deb
   - cargo deb
