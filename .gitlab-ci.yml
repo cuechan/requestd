@@ -32,23 +32,15 @@ test:test:
   - cargo test
 
 
-deb_package:
+pages:
   stage: deploy
   script:
   - cargo install cargo-deb
-  - cargo deb
-  artifacts:
-    paths:
-    - target/deb
-
-
-pages:
-  stage: deploy
-  dependencies:
-  - deb_package
-  script:
   - mkdir -p public
-  - cp -r target/debian/*.deb public/ffhl-collector_latest.deb
+  - cargo doc
+  - cp -t target/doc/* public/
+  - cargo deb
+  - cp -r target/debian/*.deb public/latest.deb
   artifacts:
     paths:
     - public
