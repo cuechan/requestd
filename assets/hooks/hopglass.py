@@ -71,8 +71,8 @@ for node in data:
 	links = []
 
 	try:
-		hg_node['flags'] = {'online': 1}
-		# print(node['status'] == 'Up')
+		hg_node['flags'] = {'online': node['status'] == 'Up'}
+		# print(node['status'])
 
 		hg_node["nodeinfo"]   = node['last_response']['nodeinfo']
 		hg_node['statistics'] = node['last_response']['statistics']

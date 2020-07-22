@@ -6,3 +6,8 @@
 config*.yml
 *.db
 *.bk
+reference_files
+/hopglass
+.vstags
+graph.json
+nodes.json
