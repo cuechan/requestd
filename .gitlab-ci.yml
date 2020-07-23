@@ -56,6 +56,9 @@ deploy:doc:
 pages:
   stage: deploy
   needs: ['build:deb', 'deploy:doc']
+  before_script:
+  - apt update && apt install -y libzmq3-dev:amd64
+  - cargo install cargo-deb
   script:
   - cargo doc
   - cargo deb
