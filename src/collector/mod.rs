@@ -186,7 +186,7 @@ fn hook_worker(receiver: Receiver<(config::Event, Node)>) {
 	// 	)));
 
 	for (event, n) in receiver {
-		trace!("recieved event: {:#?}", event);
+		trace!("running hook: {}", event.exec);
 		#[allow(unused_must_use)]
 		event_trigger(event.clone(), n).map_err(|e| {
 			error!("running hook '{}' failed: {}", event.exec, e);
