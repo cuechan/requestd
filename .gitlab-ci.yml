@@ -42,7 +42,7 @@ deploy:deb:
     paths:
     - target/debian
 
-deploy:docs:
+deploy:doc:
   stage: deploy
   script:
   - cargo doc
