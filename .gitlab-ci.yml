@@ -35,7 +35,7 @@ test:test:
 
 deploy:deb:
   stage: deploy
-  needs: test:test
+  needs: ["test:test"]
   script:
   - cargo install cargo-deb
   artifacts:
