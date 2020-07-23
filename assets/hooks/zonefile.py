@@ -8,7 +8,7 @@ from ipaddress import *
 from time import time
 
 # load environment vars
-CONTROLSOCKET = os.environ.get('CONTROLSOCKET', '/tmp/requestd.sock')
+CONTROLSOCKET = os.environ.get('REQUESTD_CTRLSOCKET', '/var/run/requestd.sock')
 
 ValidHostnameRegex = "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
 #prefix = IPv6Network('fdef:ffc0:3dd7::/64')

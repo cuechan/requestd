@@ -6,7 +6,6 @@ use config::Config;
 use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
-use multicast::if_to_index;
 use nodedb::Node;
 use nodedb::NodeDb;
 use pretty_env_logger;
@@ -31,11 +30,7 @@ pub mod output;
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
-pub const DATABASE_PATH: &str = "./nodes.db";
-pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/ffhl-collector.yml", "./config.yml"];
-pub const DEFAULT_OFFLINE_THRESH: u64 = 120;
-pub const DEFAULT_REMOVE_THRESH: u64 = 2419200; // 4 weeks
-pub const HOOK_RUNNER: u64 = 4;
+pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/requestd.yml", "./config.yml"];
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
@@ -142,7 +137,7 @@ fn get_nodeid_from_response_data(data: &json::Value) -> Option<NodeId> {
 }
 
 fn cmd_ls_nodes(_matches: clap::ArgMatches) {
-	let db = sqlite::Connection::open(DATABASE_PATH).unwrap();
+	let db = sqlite::Connection::open(&CONFIG.database.dbfile).unwrap();
 	let mut stmt = db.prepare("SELECT * FROM nodes").unwrap();
 	let mut rows = stmt.query(NO_PARAMS).unwrap();
 

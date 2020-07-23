@@ -9,7 +9,7 @@ from time import time
 import datetime
 
 # load environment vars
-CONTROLSOCKET = os.environ.get('CONTROLSOCKET', '/tmp/requestd.sock')
+CONTROLSOCKET = os.environ.get('REQUESTD_CTRLSOCKET', '/var/run/requestd.sock')
 FILENODES = "./nodes.json"
 FILEGRAPH = "./graph.json"
 

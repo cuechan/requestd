@@ -8,19 +8,18 @@ respondd:
   interval: 60
 
 database:
-  dbfile: /var/lib/ffhl-collector/nodes.db
-  min_active: 1209600
-  offline_thresh: 300
+  dbfile: /var/lib/requestd/nodes.db
+  remove_after: 1209600
+  offline_after: 300
   # evaluate database every n seconds (searching for offline nodes)
   evaluate_every: 15
 
-
+concurrent_hooks: 2
 events:
   # triggered when a new node appears
   # the last response from a node will be send to stdin of your script
-  #
   new_node:
-    - exec: /var/lib/ffhl-collector/hooks/test.py
+    - exec: /usr/local/lib/requestd/new_node.py
       # you can make things a bit easier with
       # setting env variables by providing a jq[0] filter
       # remember that these filters can return an empty result
@@ -29,13 +28,10 @@ events:
         NODE_addresses: .nodeinfo.network.addresses
         NODE_nproc: .nodeinfo.hardware.nproc
         NODE_fastd: .nodeinfo.software.fastd.enabled
-  # triggered after response from a node
-  update:
-    - exec: /var/lib/ffhl-collector/hooks/test.py
   online_after_offline:
-    - exec: /var/lib/ffhl-collector/hooks/test.py
+    - exec: /usr/local/lib/requestd/online_again.py
   node_offline:
-    - exec: /var/lib/ffhl-collector/hooks/node_offline.py
+    - exec: /usr/local/lib/requestd/node_offline.py
 
 
 # [0] https://stedolan.github.io/jq/

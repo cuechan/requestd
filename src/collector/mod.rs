@@ -1,28 +1,23 @@
 #![allow(unused_must_use)]
-#![allow(unused_imports)]
 
 pub mod nodedb;
 
 use crate::config;
-use crate::config::Config;
 use crate::NodeResponse;
 use crate::CONFIG;
-use crate::HOOK_RUNNER;
 use crossbeam_channel as crossbeam;
 use crossbeam_channel::{Receiver, Sender};
 use jq_rs as jq;
+#[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use nodedb::Node;
 use nodedb::NodeDb;
 use nodedb::NodeStatus;
-use rusqlite as sqlite;
 use serde_json as json;
 use serde_json::Value;
 use std::fmt::{self, Display};
 use std::io;
 use std::process::{self, Command};
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -89,7 +84,6 @@ impl Collector {
 						// then trigger the event
 						er_copy.push_event(Event::RemoveNode, n.clone());
 					}
-
 				}
 
 				thread::sleep(Duration::from_secs(CONFIG.database.evaluate_every as u64))
@@ -132,7 +126,7 @@ impl EventRunner {
 	fn new() -> Self {
 		let (sender, receiver) = crossbeam::unbounded();
 
-		for i in 0..CONFIG.concurrent_hooks-1 {
+		for i in 0..CONFIG.concurrent_hooks - 1 {
 			let own_receiver = receiver.clone();
 
 			thread::Builder::new()
@@ -221,7 +215,7 @@ pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 
 	let stdin = cmd.stdin.as_mut().expect("can't get stdin");
 
-	#[allow(must_use)]
+	#[allow(unused_must_use)]
 	json::to_writer(stdin, &n.last_response);
 
 	cmd.wait()?;

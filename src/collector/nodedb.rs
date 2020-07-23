@@ -1,14 +1,13 @@
 // SQL only allowed here!!!
 
-#![allow(unused_imports)]
 use crate::NodeId;
 use crate::NodeResponse;
 use crate::CONFIG;
-use crate::DATABASE_PATH;
 use chrono;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
+#[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use rusqlite as sqlite;
 use rusqlite::params;
@@ -16,7 +15,6 @@ use rusqlite::types::FromSqlError;
 use rusqlite::NO_PARAMS;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlite::types::ToSqlOutput;
 use std::fmt::{self, Display};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -123,11 +121,11 @@ impl NodeDb {
 			.collect()
 	}
 
-
 	pub fn delete_node(&mut self, nodeid: &NodeId) {
 		let db = self.db.lock().unwrap();
 
-		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid]).unwrap();
+		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid])
+			.unwrap();
 	}
 }
 

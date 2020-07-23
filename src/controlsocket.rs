@@ -2,6 +2,7 @@ use crate::nodedb::NodeDb;
 use log::*;
 use serde_json as json;
 use std::fs;
+#[allow(unused_imports)]
 use std::io::Write;
 use std::os::unix::net;
 use std::path::Path;

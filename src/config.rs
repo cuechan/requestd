@@ -1,6 +1,5 @@
 use crate::DEFAULT_CONF_FILES;
-use crate::DEFAULT_OFFLINE_THRESH;
-use crate::DEFAULT_REMOVE_THRESH;
+#[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use serde;
 use serde::{Deserialize, Serialize};
@@ -27,7 +26,10 @@ impl Config {
 		let path = matches
 			.value_of("config")
 			.or(get_first_file_found(DEFAULT_CONF_FILES))
-			.expect("no config found");
+			.expect(&format!(
+				"no config found. expected in some of these locations: {:?}",
+				DEFAULT_CONF_FILES
+			));
 
 		let mut config_str = String::new();
 		match File::open(path) {
@@ -67,7 +69,7 @@ impl Default for Config {
 			database: DbConfig::default(),
 			respondd: Respondd::default(),
 			events: Events::default(),
-			controlsocket: "/tmp/requestd.sock".to_string(),
+			controlsocket: "/var/run/requestd.sock".to_string(),
 			concurrent_hooks: 4,
 		}
 	}
@@ -86,8 +88,8 @@ impl Default for DbConfig {
 	fn default() -> Self {
 		Self {
 			dbfile: "./nodes.db".to_string(),
-			offline_after: DEFAULT_OFFLINE_THRESH,
-			remove_after: DEFAULT_REMOVE_THRESH,
+			offline_after: 300,
+			remove_after: 2592000,
 			evaluate_every: 15,
 		}
 	}

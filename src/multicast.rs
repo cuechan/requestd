@@ -11,7 +11,7 @@ use serde_json::Value;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::io::ErrorKind;
 use std::io::Read;
-use std::net::{SocketAddr, SocketAddrV6, UdpSocket};
+use std::net::{SocketAddr, SocketAddrV6};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;

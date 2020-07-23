@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+
+
+mkdir -p "/var/lib/requestd"
+systemctl daemon-reload

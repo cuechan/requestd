@@ -2,9 +2,9 @@
 
 import json
 import sys
+from syslog import syslog
 
 # ideas:
-# - add public key
 # - send a welcome mail if contact info is a mail address
 
 node = json.load(sys.stdin)

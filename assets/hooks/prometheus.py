@@ -10,7 +10,7 @@ import datetime
 from prometheus_client import CollectorRegistry, Gauge, Counter, push_to_gateway
 
 # load environment vars
-CONTROLSOCKET = os.environ.get('CONTROLSOCKET', '/tmp/requestd.sock')
+CONTROLSOCKET = os.environ.get('REQUESTD_CTRLSOCKET', '/var/run/requestd.sock')
 OUTFILE = "./"
 PUSHGATEWAY = '176.9.147.120:9091'
 
