@@ -33,7 +33,7 @@ panic="abort"
 
 [package.metadata.deb]
 name = "requestd"
-depends = "python3, bsdutils"
+depends = "python3, bsdutils, python3-prometheus-client"
 build-depends = "libsqlite3-dev libzmq3-dev"
 section = "Utilities"
 conf-files = ["/etc/requestd.yml"]
