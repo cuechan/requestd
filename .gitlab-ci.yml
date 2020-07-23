@@ -12,14 +12,8 @@ cache:
   - target/release
   - target/doc
 
-stages:
-  - build
-  - test
-  - deploy
-
 
 build:build:
-  stage: build
   script:
   - cargo update
   - cargo build
@@ -29,12 +23,10 @@ build:build:
 
 
 test:test:
-  stage: test
   script:
   - cargo test
 
 build:deb:
-  stage: build
   needs: ["test:test"]
   script:
   - cargo install cargo-deb
@@ -43,7 +35,6 @@ build:deb:
     - target/debian
 
 deploy:doc:
-  stage: build
   script:
   - cargo doc
   artifacts:
@@ -52,7 +43,6 @@ deploy:doc:
 
 
 pages:
-  stage: deploy
   needs: ['deploy:deb', 'deploy:doc']
   script:
   - mkdir -p public
