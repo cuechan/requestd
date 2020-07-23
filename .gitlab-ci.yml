@@ -34,6 +34,7 @@ test:test:
   - cargo test
 
 deploy:deb:
+  stage: deploy
   needs: test:test
   script:
   - cargo install cargo-deb
@@ -42,6 +43,7 @@ deploy:deb:
     - target/debian
 
 deploy:docs:
+  stage: deploy
   script:
   - cargo doc
   artifacts:
