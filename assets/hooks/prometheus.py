@@ -37,6 +37,7 @@ registry = CollectorRegistry(auto_describe=True)
 default_labels = ['nodeid', 'hostname', 'fw']
 
 
+online = Gauge('knoten_online', 'online', default_labels, namespace='gluon', registry=registry)
 clients = Gauge('knoten_clients', 'clients', default_labels, namespace='gluon', registry=registry)
 uptime = Gauge('knoten_uptime', 'uptime', default_labels, namespace='gluon', registry=registry)
 traffic = Gauge('knoten_traffic', 'traffic', default_labels + ['type'], namespace='gluon', registry=registry)
@@ -53,7 +54,7 @@ memory_total = Gauge('knoten_memory_total', 'memory total', default_labels, name
 memory_free = Gauge('knoten_memory_free', 'memory free', default_labels, namespace='gluon', registry=registry)
 
 nodes_total  = Gauge('knoten_total', 'total online nodes', namespace='gluon', registry=registry)
-nodes_online = Gauge('knoten_online', 'total online nodes', namespace='gluon', registry=registry)
+nodes_online = Gauge('total_online', 'total online nodes', namespace='gluon', registry=registry)
 clients_total = Gauge('clients_total', 'clients total', namespace='gluon', registry=registry)
 traffic_total = Gauge('traffic_total', 'traffic total', ['type'], namespace='gluon', registry=registry)
 
@@ -63,13 +64,11 @@ traffic_total = Gauge('traffic_total', 'traffic total', ['type'], namespace='glu
 for node in data:
 	nodes_total.inc()
 
-	if node['status'] != 'Up':
-		continue
-	nodes_online.inc()
 
 	nid = node['nodeid']
 	d = node['last_response']
 	hostname = d['nodeinfo']['hostname']
+
 
 	# default labels
 	deflbl = {
@@ -77,6 +76,14 @@ for node in data:
 		'hostname': hostname,
 		'fw': d['nodeinfo']['software']['firmware']['release']
 	}
+
+	# check node status
+	if node['status'] != 'Up':
+		online.labels(**deflbl).set(0)
+		continue
+
+	online.labels(**deflbl).set(1)
+	nodes_online.inc()
 
 
 	try:
