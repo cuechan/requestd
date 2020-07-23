@@ -8,7 +8,9 @@ before_script:
 
 cache:
   paths:
-  - target/
+  - target/debug
+  - target/release
+  - target/doc
 
 stages:
   - build
@@ -31,16 +33,28 @@ test:test:
   script:
   - cargo test
 
+deploy:deb:
+  needs: test:test
+  script:
+  - cargo install cargo-deb
+  artifacts:
+    paths:
+    - target/debian
+
+deploy:docs:
+  script:
+  - cargo doc
+  artifacts:
+    paths:
+    - target/doc
+
 
 pages:
   stage: deploy
-  needs: ['build:build', 'test:test']
+  needs: ['deploy:deb', 'deploy:doc']
   script:
-  - cargo install cargo-deb
   - mkdir -p public
-  - cargo doc
   - cp -r target/doc/* public/
-  - cargo deb
   - cp -r target/debian/*.deb public/latest.deb
   artifacts:
     paths:
