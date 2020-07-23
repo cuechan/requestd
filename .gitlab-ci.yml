@@ -57,6 +57,8 @@ pages:
   stage: deploy
   needs: ['build:deb', 'deploy:doc']
   script:
+  - cargo doc
+  - cargo deb
   - mkdir -p public
   - cp -r target/doc/* public/
   - cp -r target/debian/*.deb public/latest.deb
