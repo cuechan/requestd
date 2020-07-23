@@ -7,7 +7,7 @@ import re
 from ipaddress import *
 from time import time
 import datetime
-from prometheus_client import CollectorRegistry, Gauge, Counter, push_to_gateway
+from prometheus_client import CollectorRegistry, Gauge, Counter, push_to_gateway, delete_from_gateway
 
 # load environment vars
 CONTROLSOCKET = os.environ.get('REQUESTD_CTRLSOCKET', '/var/run/requestd.sock')
@@ -135,6 +135,7 @@ for node in data:
 		# exit(0)
 
 
+delete_from_gateway(PUSHGATEWAY, 'knoten')
 push_to_gateway(PUSHGATEWAY, job='knoten', registry=registry)
 
 # with open(FILEGRAPH, 'w') as outfile:
