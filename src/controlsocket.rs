@@ -6,6 +6,7 @@ use std::fs;
 use std::io::Write;
 use std::os::unix::net;
 use std::path::Path;
+use std::os::unix::fs::PermissionsExt;
 
 /// at the moment we just dump the whole database
 /// Someday we accept commadns to manually request data
@@ -16,6 +17,11 @@ pub fn start(mut db: NodeDb, address: &String) {
 	}
 
 	let listener = net::UnixListener::bind(address).expect("can't bind to unixsocket");
+	let f = fs::File::open(address).unwrap();
+	let mut p = f.metadata().unwrap().permissions();
+	p.set_mode(0o664);
+	f.set_permissions(p).unwrap();
+
 
 	while let Ok((stream, addr)) = listener.accept() {
 		info!("a new connection from {:?}", addr);
