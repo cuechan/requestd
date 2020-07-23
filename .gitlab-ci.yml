@@ -3,17 +3,22 @@ image: "rust:latest"
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
 
-before_script:
-  - apt update && apt install -y libzmq3-dev:amd64
-
 cache:
   paths:
   - target/debug
   - target/release
   - target/doc
 
+stages:
+  - build
+  - test
+  - deploy
+
 
 build:build:
+  stage: build
+  before_script:
+  - apt update && apt install -y libzmq3-dev:amd64
   script:
   - cargo update
   - cargo build
@@ -23,11 +28,16 @@ build:build:
 
 
 test:test:
+  stage: build
+  before_script:
+  - apt update && apt install -y libzmq3-dev:amd64
   script:
   - cargo test
 
 build:deb:
-  needs: ["test:test"]
+  stage: build
+  before_script:
+  - apt update && apt install -y libzmq3-dev:amd64
   script:
   - cargo install cargo-deb
   artifacts:
@@ -35,6 +45,7 @@ build:deb:
     - target/debian
 
 deploy:doc:
+  stage: build
   script:
   - cargo doc
   artifacts:
@@ -43,7 +54,8 @@ deploy:doc:
 
 
 pages:
-  needs: ['deploy:deb', 'deploy:doc']
+  stage: deploy
+  needs: ['build:deb', 'deploy:doc']
   script:
   - mkdir -p public
   - cp -r target/doc/* public/
