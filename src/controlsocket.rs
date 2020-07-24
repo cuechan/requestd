@@ -17,7 +17,12 @@ pub fn start(mut db: NodeDb, address: &String) {
 	}
 
 	let listener = net::UnixListener::bind(address).expect("can't bind to unixsocket");
-	let f = fs::File::open(address).unwrap();
+	debug!(
+		"bind to socket: {:#?}",
+		listener.local_addr().unwrap().as_pathname().unwrap()
+	);
+
+	let f = fs::File::open(listener.local_addr().unwrap().as_pathname().unwrap()).unwrap();
 	let mut p = f.metadata().unwrap().permissions();
 	p.set_mode(0o664);
 	f.set_permissions(p).unwrap();
