@@ -7,6 +7,7 @@ use std::io::Write;
 use std::os::unix::net;
 use std::path::Path;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::io::{FromRawFd, AsRawFd};
 
 /// at the moment we just dump the whole database
 /// Someday we accept commadns to manually request data
@@ -22,7 +23,9 @@ pub fn start(mut db: NodeDb, address: &String) {
 		listener.local_addr().unwrap().as_pathname().unwrap()
 	);
 
-	let f = fs::File::open(listener.local_addr().unwrap().as_pathname().unwrap()).unwrap();
+	let f = unsafe {
+		fs::File::from_raw_fd(listener.as_raw_fd())
+	};
 	let mut p = f.metadata().unwrap().permissions();
 	p.set_mode(0o664);
 	f.set_permissions(p).unwrap();
