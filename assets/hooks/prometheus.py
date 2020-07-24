@@ -114,7 +114,7 @@ for node in data:
 
 		# cpu stats
 		for m,v in d['statistics']['stat']['cpu'].items():
-			cpu.labels(**deflbl, mode=t).set(v) # per node
+			cpu.labels(**deflbl, mode=m).set(v) # per node
 
 		# memory
 		memory_usage.labels(**deflbl).set(1-(d['statistics']['memory']['free']/d['statistics']['memory']['total']))
