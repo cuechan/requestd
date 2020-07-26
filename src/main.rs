@@ -21,12 +21,14 @@ use std::process::exit;
 use std::thread;
 use std::time::Duration;
 
+
 pub mod collector;
 pub mod config;
 pub mod controlsocket;
 pub mod model;
 pub mod multicast;
 pub mod output;
+pub mod monitor;
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
@@ -48,7 +50,9 @@ lazy_static! {
 	};
 }
 
+
 fn main() {
+	monitor::HIGH_FIVE_COUNTER.inc();
 	pretty_env_logger::init();
 
 	trace!("config: \n{}", yaml::to_string(&*CONFIG).unwrap());
@@ -75,6 +79,8 @@ fn cmd_collect() {
 	let requester = multicast::ResponderService::start(&CONFIG.respondd.interface, CONFIG.respondd.interval);
 	let receiver = requester.get_receiver();
 	let db = NodeDb::new(&CONFIG.database.dbfile);
+
+	monitor::start_exporter();
 
 	// start the socket listener
 	let db_c = db.clone();
