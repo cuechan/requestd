@@ -9,6 +9,9 @@ from time import time
 
 # load environment vars
 CONTROLSOCKET = os.environ.get('REQUESTD_CTRLSOCKET', '/var/run/requestd.sock')
+OUTFILE = os.environ.get('OUT', '/tmp/nodes.zone')
+SOA = os.environ.get('SOA', 'srv02.luebeck.freifunk.net.')
+NS = os.environ.get('NS', 'srv02.luebeck.freifunk.net.')
 
 ValidHostnameRegex = "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
 #prefix = IPv6Network('fdef:ffc0:3dd7::/64')
@@ -30,16 +33,21 @@ def get_all_nodes():
 
 data = get_all_nodes()
 
-print(f"""$TTL 600  ; 10 minutes
-@     IN SOA  srv01.luebeck.freifunk.net. info.luebeck.freifunk.net. (
-					{time} ; serial
+f = open(OUTFILE, "wt")
+
+
+
+f.write(f"""$TTL 600  ; 10 minutes
+@     IN SOA  {SOA} info.luebeck.freifunk.net. (
+					{int(time())} ; serial
 					600        ; refresh (10min)
 					30         ; retry (30s)
 					3600       ; expire (1 hour)
 					60         ; minimum (1 minute)
 					)
-		NS srv01.luebeck.freifunk.net.
-			""")
+		NS {NS}
+
+""")
 
 HostnameRegex = re.compile(ValidHostnameRegex)
 
@@ -59,6 +67,6 @@ for e in data:
 				break
 
 		if address:
-			print("%s\tAAAA\t%s" % (hostname, address))
+			f.write(f"{hostname}\tAAAA\t{address}\n")
 	except:
 		pass
