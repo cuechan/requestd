@@ -52,4 +52,5 @@ assets = [
 	["assets/hooks/hopglass.py",   "/usr/local/lib/requestd/", "775"],
 	["assets/hooks/prometheus.py", "/usr/local/lib/requestd/", "775"],
 	["assets/hooks/update.py",     "/usr/local/lib/requestd/", "775"],
+	["assets/hooks/zonefile.py",   "/usr/local/lib/requestd/", "775"],
 ]

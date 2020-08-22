@@ -15,6 +15,7 @@ use std::net::{SocketAddr, SocketAddrV6};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use crate::metrics;
 
 /// The service object that can be used to
 /// request data or stop the thread
@@ -48,8 +49,9 @@ impl ResponderService {
 
 		let ref socket = self.status.lock().unwrap().socket;
 
-		socket
-			.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(address))
+		metrics::TOTAL_REQUESTS.inc();
+
+		socket.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(address))
 			.expect("can't send data");
 	}
 
@@ -123,7 +125,9 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 
 			thread::sleep(Duration::from_secs(5));
 			continue;
-		};
+		}
+
+		metrics::TOTAL_RESPONSES.inc();
 
 		let (bytes_read, remote) = recv_result.unwrap();
 		let mut response = String::new();

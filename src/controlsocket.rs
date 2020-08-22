@@ -23,9 +23,7 @@ pub fn start(mut db: NodeDb, address: &String) {
 		listener.local_addr().unwrap().as_pathname().unwrap()
 	);
 
-	let f = unsafe {
-		fs::File::from_raw_fd(listener.as_raw_fd())
-	};
+	let f = unsafe {fs::File::from_raw_fd(listener.as_raw_fd())};
 	let mut p = f.metadata().unwrap().permissions();
 	p.set_mode(0o664);
 	f.set_permissions(p).unwrap();

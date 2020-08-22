@@ -20,6 +20,7 @@ use std::io;
 use std::process::{self, Command};
 use std::thread;
 use std::time::Duration;
+use crate::monitor::metrics::HOOKS_WAITING;
 
 pub struct Collector {
 	db: nodedb::NodeDb,
@@ -168,6 +169,7 @@ impl EventRunner {
 			_ => warn!("event not supported yet: {}", e),
 		}
 
+		HOOKS_WAITING.set(self.threads.len() as i64);
 		debug!("queue size {}", self.threads.len());
 
 		// thread::sleep(Duration::from_millis(500))

@@ -1,3 +1,13 @@
+
+
+pub mod collector;
+pub mod config;
+pub mod controlsocket;
+pub mod model;
+pub mod multicast;
+pub mod output;
+pub mod monitor;
+
 use chrono::{DateTime, Utc};
 use clap;
 use collector::nodedb;
@@ -20,15 +30,7 @@ use std::process;
 use std::process::exit;
 use std::thread;
 use std::time::Duration;
-
-
-pub mod collector;
-pub mod config;
-pub mod controlsocket;
-pub mod model;
-pub mod multicast;
-pub mod output;
-pub mod monitor;
+use monitor::metrics;
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
@@ -52,7 +54,6 @@ lazy_static! {
 
 
 fn main() {
-	monitor::HIGH_FIVE_COUNTER.inc();
 	pretty_env_logger::init();
 
 	trace!("config: \n{}", yaml::to_string(&*CONFIG).unwrap());
