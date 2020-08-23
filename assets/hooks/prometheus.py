@@ -126,7 +126,7 @@ for node in data:
 		process.labels(**deflbl, type='total').set(d['statistics']['processes']['total'])
 		process.labels(**deflbl, type='running').set(d['statistics']['processes']['running'])
 
-		domain_counter.labels(domain=d['nodeifno']['system']['domain_code'])
+		domain_counter.labels(domain=d['nodeifno']['system']['domain_code']).inc()
 
 
 
