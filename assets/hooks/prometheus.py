@@ -36,7 +36,6 @@ registry = CollectorRegistry(auto_describe=True)
 
 default_labels = ['nodeid', 'hostname', 'fw']
 
-
 online = Gauge('knoten_online', 'online', default_labels, namespace='gluon', registry=registry)
 clients = Gauge('knoten_clients', 'clients', default_labels, namespace='gluon', registry=registry)
 uptime = Gauge('knoten_uptime', 'uptime', default_labels, namespace='gluon', registry=registry)
@@ -53,6 +52,7 @@ memory_usage = Gauge('knoten_memory', 'memory usage', default_labels, namespace=
 memory_total = Gauge('knoten_memory_total', 'memory total', default_labels, namespace='gluon', registry=registry)
 memory_free = Gauge('knoten_memory_free', 'memory free', default_labels, namespace='gluon', registry=registry)
 
+domain_counter = Gauge('domain_total', 'domain code', ['domain'], namespace='gluon', registry=registry)
 nodes_total  = Gauge('knoten_total', 'total online nodes', namespace='gluon', registry=registry)
 nodes_online = Gauge('total_online', 'total online nodes', namespace='gluon', registry=registry)
 clients_total = Gauge('clients_total', 'clients total', namespace='gluon', registry=registry)
@@ -87,7 +87,6 @@ for node in data:
 
 
 	try:
-
 		# clients. per node, then increase global count
 		clients.labels(**deflbl).set(d['statistics']['clients']['total'])
 		clients_total.inc(amount=d['statistics']['clients']['total'])
@@ -127,6 +126,7 @@ for node in data:
 		process.labels(**deflbl, type='total').set(d['statistics']['processes']['total'])
 		process.labels(**deflbl, type='running').set(d['statistics']['processes']['running'])
 
+		domain_counter.labels(domain=d['nodeifno']['system']['domain_code'])
 
 
 
