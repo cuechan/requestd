@@ -77,7 +77,7 @@ fn main() {
 
 // TODO: this needs a bit more/clearer structure
 fn cmd_collect() {
-	let requester = multicast::ResponderService::start(&CONFIG.respondd.interface, CONFIG.respondd.interval);
+	let requester = multicast::ResponderService::new(&CONFIG.respondd.interface, CONFIG.respondd.interval);
 	let receiver = requester.get_receiver();
 	let db = NodeDb::new(&CONFIG.database.dbfile);
 

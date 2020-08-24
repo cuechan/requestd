@@ -62,7 +62,7 @@ impl ResponderService {
 
 	/// starts the respondd requester
 	/// this is non-blocking and spawn it's own thread
-	pub fn start(iface: &str, interval: u64) -> Self {
+	pub fn new(iface: &str, interval: u64) -> Self {
 		let iface_n = if_to_index(&iface).expect(&format!("no such interface: {}", iface));
 
 		let (tx, rx) = unbounded::<ResponddResponse>();
