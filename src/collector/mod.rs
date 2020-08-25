@@ -3,6 +3,7 @@
 pub mod nodedb;
 
 use crate::config;
+use crate::monitor::metrics::HOOKS_WAITING;
 use crate::NodeResponse;
 use crate::CONFIG;
 use crossbeam_channel as crossbeam;
@@ -20,10 +21,9 @@ use std::io;
 use std::process::{self, Command};
 use std::thread;
 use std::time::Duration;
-use crate::monitor::metrics::HOOKS_WAITING;
 
 pub struct Collector {
-	db: nodedb::NodeDb,
+	nodedb: nodedb::NodeDb,
 	er: EventRunner,
 }
 
@@ -54,11 +54,16 @@ impl Event {
 
 impl Collector {
 	/// Starts a collector thread that also checks the database for offline nodes
-	pub fn new(db: NodeDb) -> Self {
+	pub fn new(nodedb: NodeDb) -> Self {
 		let er = EventRunner::new();
 
-		let mut db_copy = db.clone();
-		let mut er_copy = er.clone();
+		Self { nodedb, er }
+	}
+
+	pub fn start_collector(&self) {
+		let mut db_copy = self.nodedb.clone();
+		let mut er_copy = self.er.clone();
+
 		thread::spawn(move || {
 			// wait an initial period to prevent that all nodes appear to be offline
 			thread::sleep(Duration::from_secs(CONFIG.database.offline_after as u64));
@@ -90,30 +95,28 @@ impl Collector {
 				thread::sleep(Duration::from_secs(CONFIG.database.evaluate_every as u64))
 			}
 		});
-
-		Self { db, er }
 	}
 
 	pub fn receive(&mut self, nodedata: NodeResponse) {
 		trace!("Node: {:#?}", nodedata.nodeid);
 
-		let node = if !self.db.is_known(&nodedata.nodeid) {
+		let node = if !self.nodedb.is_known(&nodedata.nodeid) {
 			trace!("Node is not known");
-			self.db.insert_node(&nodedata).unwrap();
-			let node = self.db.get_node(&nodedata.nodeid).unwrap();
+			self.nodedb.insert_node(&nodedata).unwrap();
+			let node = self.nodedb.get_node(&nodedata.nodeid).unwrap();
 
 			self.er.push_event(Event::NewNode, node.clone());
 			node
 		} else {
 			trace!("We know this node");
-			self.db.get_node(&nodedata.nodeid).unwrap()
+			self.nodedb.get_node(&nodedata.nodeid).unwrap()
 		};
 
 		if node.status == NodeStatus::Down {
 			self.er.push_event(Event::NodeOnlineAfterOffline, node.clone());
 		}
 
-		self.db.insert_node(&nodedata).unwrap();
+		self.nodedb.insert_node(&nodedata).unwrap();
 		self.er.push_event(Event::NodeUpdate, node);
 	}
 }
@@ -130,10 +133,7 @@ impl EventRunner {
 		for i in 0..CONFIG.concurrent_hooks - 1 {
 			let own_receiver = receiver.clone();
 
-			thread::Builder::new()
-				.name(format!("hook_runner_{}", i))
-				.spawn(move || hook_worker(own_receiver))
-				.unwrap();
+			thread::Builder::new().name(format!("hook_runner_{}", i)).spawn(move || hook_worker(own_receiver)).unwrap();
 		}
 
 		Self { threads: sender }
@@ -192,10 +192,7 @@ fn hook_worker(receiver: Receiver<(config::Event, Node)>) {
 
 pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 	let vars = event.vars.iter().map(|(var, q)| {
-		let val = jq::compile(q)
-			.unwrap()
-			.run(&json::to_string(&n.last_response).unwrap())
-			.unwrap();
+		let val = jq::compile(q).unwrap().run(&json::to_string(&n.last_response).unwrap()).unwrap();
 
 		// workaround because jq_rs does not support the -r flag
 		// True is converted to `1` and false to an empty string
@@ -210,10 +207,7 @@ pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 		(var, val_nice)
 	});
 
-	let mut cmd = Command::new(&event.exec)
-		.envs(vars)
-		.stdin(process::Stdio::piped())
-		.spawn()?;
+	let mut cmd = Command::new(&event.exec).envs(vars).stdin(process::Stdio::piped()).spawn()?;
 
 	let stdin = cmd.stdin.as_mut().expect("can't get stdin");
 
