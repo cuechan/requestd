@@ -4,6 +4,7 @@ pub mod nodedb;
 
 use crate::config;
 use crate::monitor::metrics::HOOKS_WAITING;
+use crate::multicast::RequesterService;
 use crate::NodeResponse;
 use crate::CONFIG;
 use crossbeam_channel as crossbeam;
@@ -60,28 +61,21 @@ impl Collector {
 		Self { nodedb, er }
 	}
 
-	pub fn start_collector(&self) {
+	pub fn start_collector(&self, requester: RequesterService) {
 		let mut db_copy = self.nodedb.clone();
 		let mut er_copy = self.er.clone();
 
+		info!("start collector",);
 		thread::spawn(move || {
 			// wait an initial period to prevent that all nodes appear to be offline
-			thread::sleep(Duration::from_secs(CONFIG.database.offline_after as u64));
+			// thread::sleep(Duration::from_secs(CONFIG.database.offline_after as u64));
 
 			loop {
-				trace!("checking for offline nodes");
+				debug!("checking for offline nodes");
 				// get all nodes, that are marked as online and check
 				// if we actually got a message in the last n seconds
 				// or if we have to assume that it went offline
 				for n in db_copy.get_all_nodes().into_iter() {
-					if !n.is_online() && n.status != NodeStatus::Down {
-						trace!("offline node found: {}", n.nodeid);
-						// first, mark node as offline
-						db_copy.set_status(&n.nodeid, NodeStatus::Down);
-						// then trigger the event
-						er_copy.push_event(Event::NodeOffline, n.clone());
-					}
-
 					// did he dieded?
 					if n.is_dead() {
 						trace!("purging node: {}", n.nodeid);
@@ -89,6 +83,28 @@ impl Collector {
 						db_copy.delete_node(&n.nodeid);
 						// then trigger the event
 						er_copy.push_event(Event::RemoveNode, n.clone());
+
+						continue;
+					}
+
+					if n.is_offline() && n.status == NodeStatus::Up {
+						info!("offline node found: {}", n.nodeid);
+						info!("    last seen:     {}", n.last_seen);
+						info!("    offline since: {}s", n.since_last_seen().num_seconds());
+						// first, mark node as offline
+						db_copy.set_status(&n.nodeid, NodeStatus::Down);
+						// then trigger the event
+						er_copy.push_event(Event::NodeOffline, n.clone());
+
+						continue;
+					}
+
+					// check if the node needs some attention
+					if n.since_last_seen().num_seconds() as f64 > (2.0 * CONFIG.respondd.interval as f64) && n.is_online() {
+						info!("requesting data from {:#?} directly", n.nodeid);
+						info!("    last seen: {:#?}s ago", n.since_last_seen().num_seconds());
+						info!("       status: {:#?}", n.status);
+						requester.request(&n.last_address, &CONFIG.respondd.categories);
 					}
 				}
 
@@ -98,21 +114,19 @@ impl Collector {
 	}
 
 	pub fn receive(&mut self, nodedata: NodeResponse) {
-		trace!("Node: {:#?}", nodedata.nodeid);
+		// trace!("Node: {:#?}", nodedata.nodeid);
 
-		let node = if !self.nodedb.is_known(&nodedata.nodeid) {
-			trace!("Node is not known");
+		let node: Node = if !self.nodedb.is_known(&nodedata.nodeid) {
 			self.nodedb.insert_node(&nodedata).unwrap();
 			let node = self.nodedb.get_node(&nodedata.nodeid).unwrap();
 
 			self.er.push_event(Event::NewNode, node.clone());
 			node
 		} else {
-			trace!("We know this node");
 			self.nodedb.get_node(&nodedata.nodeid).unwrap()
 		};
 
-		if node.status == NodeStatus::Down {
+		if node.is_offline() {
 			self.er.push_event(Event::NodeOnlineAfterOffline, node.clone());
 		}
 
@@ -144,7 +158,7 @@ impl EventRunner {
 
 		match e {
 			Event::NodeOffline => {
-				// info!("node is offline {}", n.nodeid);
+				info!("node is offline {}", n.nodeid);
 
 				for hook in &CONFIG.events.node_offline {
 					self.threads.send((hook.clone(), n.clone())).unwrap();
@@ -170,7 +184,6 @@ impl EventRunner {
 		}
 
 		HOOKS_WAITING.set(self.threads.len() as i64);
-		debug!("queue size {}", self.threads.len());
 
 		// thread::sleep(Duration::from_millis(500))
 	}

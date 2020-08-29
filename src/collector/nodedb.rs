@@ -32,19 +32,15 @@ impl NodeDb {
 		// disable synchronization. too slow
 		db.pragma(None, "synchronous", &"OFF".to_string(), |_| Ok(())).unwrap();
 
-		Self {
-			db: Arc::new(Mutex::new(db)),
-		}
+		Self { db: Arc::new(Mutex::new(db)) }
 	}
 
 	pub fn get_node(&self, nodeid: &NodeId) -> Option<Node> {
-		let node =
-			self.db
-				.lock()
-				.unwrap()
-				.query_row("SELECT * FROM nodes WHERE nodeid == ?1", params![nodeid], |row| {
-					Ok(Node::from_row(row))
-				});
+		let node = self
+			.db
+			.lock()
+			.unwrap()
+			.query_row("SELECT * FROM nodes WHERE nodeid == ?1", params![nodeid], |row| Ok(Node::from_row(row)));
 
 		node.ok()
 	}
@@ -54,9 +50,7 @@ impl NodeDb {
 			.db
 			.lock()
 			.unwrap()
-			.query_row("SELECT COUNT(*) FROM nodes WHERE nodeid = ?1", params![nodeid], |row| {
-				row.get(0)
-			})
+			.query_row("SELECT COUNT(*) FROM nodes WHERE nodeid = ?1", params![nodeid], |row| row.get(0))
 			.unwrap();
 
 		count == 1
@@ -67,10 +61,7 @@ impl NodeDb {
 			.db
 			.lock()
 			.unwrap()
-			.execute(
-				"INSERT INTO nodes (nodeid, ) VALUES() nodes WHERE nodeid = ?1",
-				params![],
-			)
+			.execute("INSERT INTO nodes (nodeid, ) VALUES() nodes WHERE nodeid = ?1", params![])
 			.unwrap();
 	}
 
@@ -95,20 +86,14 @@ impl NodeDb {
 	}
 
 	pub fn set_status(&mut self, id: &NodeId, status: NodeStatus) -> Result<usize, sqlite::Error> {
-		self.db.lock().unwrap().execute(
-			"UPDATE nodes  SET (status) = (?2) WHERE nodeid = ?1",
-			params![id, status],
-		)
+		self.db.lock().unwrap().execute("UPDATE nodes  SET (status) = (?2) WHERE nodeid = ?1", params![id, status])
 	}
 
 	pub fn get_all_nodes(&mut self) -> Vec<Node> {
 		let db = self.db.lock().unwrap();
 		let mut stmt = db.prepare("SELECT * FROM nodes").unwrap();
 
-		stmt.query_map(NO_PARAMS, |row| Ok(Node::from_row(row)))
-			.unwrap()
-			.map(|n| n.unwrap())
-			.collect()
+		stmt.query_map(NO_PARAMS, |row| Ok(Node::from_row(row))).unwrap().map(|n| n.unwrap()).collect()
 	}
 
 	pub fn get_all_nodes_with_status(&mut self, status: NodeStatus) -> Vec<Node> {
@@ -124,8 +109,7 @@ impl NodeDb {
 	pub fn delete_node(&mut self, nodeid: &NodeId) {
 		let db = self.db.lock().unwrap();
 
-		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid])
-			.unwrap();
+		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid]).unwrap();
 	}
 }
 
@@ -157,23 +141,27 @@ impl Node {
 		}
 	}
 
-	/// was the node seen within the threshhold
+	/// A node is `online` when it was recently seen.
+	/// How long `recently` is, can be configured with `database.offline_after`
 	pub fn is_online(&self) -> bool {
-		(self.last_seen + Duration::seconds(CONFIG.database.offline_after as i64)) > Utc::now()
+		self.since_last_seen() < Duration::seconds(CONFIG.database.offline_after as i64)
 	}
 
+	/// A node is offline, when it was not seen within the configure `database.offline_after` threshhold
+	/// but the last message is not older than the `database.remove_after` duration.
 	pub fn is_offline(&self) -> bool {
-		!self.is_online()
+		!self.is_online() && !self.is_dead()
 	}
 
-	/// is the node dead?
+	/// When a node wasn't seen for a very long time
+	/// we consider it as `dead`. In this case the node should be forgotton and
+	/// gets removed from the database
 	pub fn is_dead(&self) -> bool {
-		(self.last_seen + Duration::seconds(CONFIG.database.remove_after as i64)) < Utc::now()
+		self.since_last_seen() > Duration::seconds(CONFIG.database.remove_after as i64)
 	}
 
-	/// is the node alive?
-	pub fn is_alive(&self) -> bool {
-		!self.is_dead()
+	pub fn since_last_seen(&self) -> Duration {
+		Utc::now() - self.last_seen
 	}
 }
 
@@ -217,8 +205,6 @@ impl sqlite::types::FromSql for NodeStatus {
 
 impl sqlite::ToSql for NodeStatus {
 	fn to_sql(&self) -> Result<sqlite::types::ToSqlOutput, sqlite::Error> {
-		Ok(sqlite::types::ToSqlOutput::Owned(sqlite::types::Value::Text(
-			self.to_string(),
-		)))
+		Ok(sqlite::types::ToSqlOutput::Owned(sqlite::types::Value::Text(self.to_string())))
 	}
 }

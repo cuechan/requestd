@@ -1,12 +1,10 @@
-
-
 pub mod collector;
 pub mod config;
 pub mod controlsocket;
 pub mod model;
+pub mod monitor;
 pub mod multicast;
 pub mod output;
-pub mod monitor;
 
 use chrono::{DateTime, Utc};
 use clap;
@@ -16,6 +14,7 @@ use config::Config;
 use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
+use monitor::metrics;
 use nodedb::Node;
 use nodedb::NodeDb;
 use pretty_env_logger;
@@ -30,7 +29,6 @@ use std::process;
 use std::process::exit;
 use std::thread;
 use std::time::Duration;
-use monitor::metrics;
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
@@ -51,7 +49,6 @@ lazy_static! {
 			.unwrap()
 	};
 }
-
 
 fn main() {
 	pretty_env_logger::init();
@@ -77,26 +74,27 @@ fn main() {
 
 // TODO: this needs a bit more/clearer structure
 fn cmd_collect() {
-	let requester = multicast::ResponderService::new(&CONFIG.respondd.interface, CONFIG.respondd.interval);
+	monitor::start_exporter();
+
+	let requester = multicast::RequesterService::new(&CONFIG.respondd.interface);
 	let receiver = requester.get_receiver();
 	let db = NodeDb::new(&CONFIG.database.dbfile);
 
-	monitor::start_exporter();
-
-	// start the socket listener
+	// start the controlsocket listener
 	let db_c = db.clone();
 	std::thread::spawn(move || {
 		controlsocket::start(db_c, &CONFIG.controlsocket);
 	});
 
+	let mut cllctr = Collector::new(db);
+	cllctr.start_collector(requester.clone());
+
 	thread::spawn(move || loop {
-		debug!("request new data");
-		requester.request(&CONFIG.respondd.categories);
+		debug!("requesting new data");
+		requester.request(&CONFIG.respondd.multicast_address, &CONFIG.respondd.categories);
 
 		thread::sleep(Duration::from_secs(CONFIG.respondd.interval));
 	});
-
-	let mut cllctr = Collector::new(db);
 
 	for node_response in &receiver {
 		// do some checks

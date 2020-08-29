@@ -1,3 +1,4 @@
+use crate::metrics;
 use crate::Timestamp;
 use crate::CONFIG;
 use chrono::Utc;
@@ -15,43 +16,61 @@ use std::net::{SocketAddr, SocketAddrV6};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use crate::metrics;
+
+/// wrapper for the socket.
+///
+/// Wrapped so we can use it on different threads
+type SharedSocket = Arc<Mutex<Socket>>;
 
 /// The service object that can be used to
 /// request data or stop the thread
-pub struct ResponderService {
+#[derive(Debug, Clone)]
+pub struct RequesterService {
 	interface: u32,
 	rx: Receiver<ResponddResponse>,
-	status: SharedReceiverLoopStatus,
-	thread: thread::JoinHandle<()>,
+	socket: SharedSocket,
+	// thread: thread::JoinHandle<()>,
 }
 
-struct ReceiverLoopStatus {
-	#[allow(dead_code)]
-	interval: u64,
-	running: bool,
-	socket: Socket,
-}
+impl RequesterService {
+	/// starts the respondd requester
+	/// this is non-blocking and spawns it's own thread
+	pub fn new(iface: &str) -> Self {
+		let iface_n = if_to_index(&iface).expect(&format!("no such interface: {}", iface));
 
-type SharedReceiverLoopStatus = Arc<Mutex<ReceiverLoopStatus>>;
+		let (tx, rx) = unbounded::<ResponddResponse>();
+		let socket = Arc::new(Mutex::new({
+			let s: Socket = Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp())).unwrap();
+			s.set_nonblocking(true).unwrap();
+			s.bind(&SockAddr::from("[::]:16000".parse::<SocketAddrV6>().unwrap())).unwrap();
+			// s.set_ttl(1).unwrap();
+			s
+		}));
 
-impl ResponderService {
+		trace!("starting multicast service: scopeid={}", iface_n);
+		let socket_copy = socket.clone();
+		let handle = thread::spawn(move || receiver_loop(socket_copy, tx));
+
+		RequesterService {
+			interface: iface_n,
+			rx: rx,
+			socket: socket,
+			// thread: handle,
+		}
+	}
+
 	/// Request a specific response
-	pub fn request(&self, what: &Vec<String>) {
-		let address = SocketAddrV6::new(
-			CONFIG.respondd.multicast_address.parse().unwrap(),
-			1001,
-			0,
-			self.interface,
-		);
+	pub fn request(&self, dst: &String, what: &Vec<String>) {
+		let mcast_address = SocketAddrV6::new(dst.parse().unwrap(), 1001, 0, self.interface);
 
-		trace!("requesting {:?} at {}", what, address);
+		trace!("requesting {:?} at {}", what, mcast_address);
 
-		let ref socket = self.status.lock().unwrap().socket;
+		let ref socket = self.socket.lock().unwrap();
 
 		metrics::TOTAL_REQUESTS.inc();
 
-		socket.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(address))
+		socket
+			.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(mcast_address))
 			.expect("can't send data");
 	}
 
@@ -60,62 +79,28 @@ impl ResponderService {
 		self.rx.clone()
 	}
 
-	/// starts the respondd requester
-	/// this is non-blocking and spawn it's own thread
-	pub fn new(iface: &str, interval: u64) -> Self {
-		let iface_n = if_to_index(&iface).expect(&format!("no such interface: {}", iface));
-
-		let (tx, rx) = unbounded::<ResponddResponse>();
-		let socket = {
-			// let s = Socket::new("[::]:16000").unwrap();
-			let s = Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp())).unwrap();
-			// s.set_nonblocking(true).unwrap();
-			s.set_nonblocking(true).unwrap();
-			// s.set_ttl(1).unwrap();
-			s
-		};
-
-		let status = Arc::new(Mutex::new(ReceiverLoopStatus {
-			interval: interval,
-			running: true,
-			socket: socket,
-		}));
-
-		let stat = status.clone();
-		let handle = thread::spawn(move || receiver_loop(stat, tx));
-
-		trace!("starting multicast service: scopeid={}", iface_n);
-
-		Self {
-			interface: iface_n,
-			rx: rx,
-			status: status,
-			thread: handle,
-		}
+	/// get a channel where you can send request
+	pub fn get_requester(&self) -> Receiver<ResponddResponse> {
+		self.rx.clone()
 	}
 
 	pub fn stop(self) {
-		self.status.lock().unwrap().running = false;
-		self.thread.join().unwrap();
+		// self.status.lock().unwrap().running = false;
+		// self.thread.join().unwrap();
 	}
 }
 
 /// request data from respondd
-fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddResponse>) {
+fn receiver_loop(socket: SharedSocket, tx: Sender<ResponddResponse>) {
 	loop {
-		let status = shared_status.lock().unwrap();
-
-		if !status.running {
-			// stop loop
-			drop(status);
-			return;
-		}
-
 		let mut data = [0; 65536];
-		let recv_result = status.socket.recv_from(&mut data);
+		let recv_result;
 
-		// drop ownership to free mutex
-		drop(status);
+		// use extra scope so the lock gets dropped after we are done receiving
+		{
+			let socket = socket.lock().unwrap();
+			recv_result = socket.recv_from(&mut data);
+		}
 
 		if let Err(ref e) = recv_result {
 			if e.kind() != ErrorKind::WouldBlock {
@@ -131,11 +116,7 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 
 		let (bytes_read, remote) = recv_result.unwrap();
 		let mut response = String::new();
-		DeflateDecoder::new(&data[..bytes_read])
-			.read_to_string(&mut response)
-			.unwrap();
-
-		// trace!("received data: {}", response);
+		DeflateDecoder::new(&data[..bytes_read]).read_to_string(&mut response).unwrap();
 
 		let json_: Value = match json::from_str(&response) {
 			Err(e) => {
@@ -145,17 +126,14 @@ fn receiver_loop(shared_status: SharedReceiverLoopStatus, tx: Sender<ResponddRes
 			Ok(r) => r,
 		};
 
-		// trace!("record: \n{:#?}", json_);
-
-		// let mut record;
 		if !json_.is_object() {
-			warn!("received incompatible data: not a json object");
+			warn!("received weird response: not a json object");
 			continue;
 		}
 
 		let resp = ResponddResponse {
 			timestamp: Utc::now(),
-			remote: remote.as_std().expect("cant convert to std AockAddr"),
+			remote: remote.as_std().expect("cant convert to `socket2::SockAddr`"),
 			response: json_,
 		};
 
