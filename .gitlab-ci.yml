@@ -5,9 +5,9 @@ variables:
 
 cache:
   paths:
-  - target/debug
-  - target/release
-  - target/doc
+    - target/debug
+    - target/release
+    - target/doc
 
 stages:
   - build
@@ -20,45 +20,43 @@ before_script:
 build:build:
   stage: build
   script:
-  - cargo update
-  - cargo build
+    - cargo update
+    - cargo build
   artifacts:
     paths:
-    - target
-
+      - target
 
 test:test:
   stage: build
   script:
-  - cargo test
+    - cargo test
 
 build:deb:
   stage: build
   script:
-  - cargo install cargo-deb
+    - cargo install cargo-deb
   artifacts:
     paths:
-    - target/debian
+      - target/debian
 
 deploy:doc:
   stage: build
   script:
-  - cargo doc
+    - cargo doc
   artifacts:
     paths:
-    - target/doc
-
+      - target/doc
 
 pages:
   stage: deploy
-  needs: ['build:deb', 'deploy:doc']
+  only:
+    - master
+    - develop
+  needs: ["build:deb", "deploy:doc"]
   script:
-  - cargo install cargo-deb
-  - cargo doc
-  - cargo deb
-  - mkdir -p public
-  - cp -r target/doc/* public/
-  - cp -r target/debian/*.deb public/latest.deb
+    - mkdir -p public
+    - cp -r target/doc/* public/
+    - cp -r target/debian/*.deb public/requestd.deb
   artifacts:
     paths:
-    - public
+      - public
