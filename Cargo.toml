@@ -45,14 +45,17 @@ section = "Utilities"
 conf-files = ["/etc/requestd.yml"]
 maintainer-scripts = "assets/deb-scripts"
 assets = [
-	["assets/requestd.service",    "/lib/systemd/system/",     "664"],
-	["target/release/requestd",    "/usr/bin/",                "755"],
-	["assets/config.yml",          "/etc/requestd.yml",        "664"],
-	# hooks
-	["assets/hooks/new_node.py",   "/usr/local/lib/requestd/", "775"],
-	["assets/hooks/offline.py",    "/usr/local/lib/requestd/", "775"],
-	["assets/hooks/hopglass.py",   "/usr/local/lib/requestd/", "775"],
-	["assets/hooks/prometheus.py", "/usr/local/lib/requestd/", "775"],
-	["assets/hooks/update.py",     "/usr/local/lib/requestd/", "775"],
-	["assets/hooks/zonefile.py",   "/usr/local/lib/requestd/", "775"],
+    ["assets/requestd.service",         "/lib/systemd/system/",     "664"],
+    ["target/release/requestd",         "/usr/bin/",                "755"],
+    ["assets/config.yml",               "/etc/requestd.yml",        "664"],
+    # hooks
+    ["assets/hooks/new_node.py",        "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/offline.py",         "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/hopglass.py",        "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/hopglass_nodes.py",  "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/hopglass_graph.py",  "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/prometheus.py",      "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/prometheus_web.py",  "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/update.py",          "/usr/local/lib/requestd/", "775"],
+    ["assets/hooks/zonefile.py",        "/usr/local/lib/requestd/", "775"],
 ]

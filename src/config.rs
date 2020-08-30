@@ -70,7 +70,7 @@ impl Default for Config {
 			database: DbConfig::default(),
 			respondd: Respondd::default(),
 			events: Events::default(),
-			controlsocket: "/var/run/requestd.sock".to_string(),
+			controlsocket: "/tmp/requestd.sock".to_string(),
 			concurrent_hooks: 4,
 			web_endpoints: vec![],
 		}

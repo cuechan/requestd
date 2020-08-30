@@ -14,6 +14,7 @@ database:
   # evaluate database every n seconds (searching for offline nodes)
   evaluate_every: 15
 
+controlsocket: /tmp/requestd.sock
 concurrent_hooks: 2
 events:
   # triggered when a new node appears
@@ -33,5 +34,13 @@ events:
   node_offline:
     - exec: /usr/local/lib/requestd/node_offline.py
 
+web_endpoints:
+  - path: /metrics
+    exec: /usr/local/lib/requestd/prometheus_web.py
+  - path: /graph.json
+    exec: /usr/local/lib/requestd/hopglass_graph.py
+  - path: /nodes.json
+    exec: /usr/local/lib/requestd/hopglass_nodes.py
+# [0] https://stedolan.github.io/jq/
 
 # [0] https://stedolan.github.io/jq/
