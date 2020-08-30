@@ -26,10 +26,7 @@ impl Config {
 		let path = matches
 			.value_of("config")
 			.or(get_first_file_found(DEFAULT_CONF_FILES))
-			.expect(&format!(
-				"no config found. expected in some of these locations: {:?}",
-				DEFAULT_CONF_FILES
-			));
+			.expect(&format!("no config found. expected in some of these locations: {:?}", DEFAULT_CONF_FILES));
 
 		let mut config_str = String::new();
 		match File::open(path) {
@@ -112,11 +109,7 @@ impl Default for Respondd {
 			timeout: 5,
 			interval: 15,
 			multicast_address: "ff05::2:1001".to_string(),
-			categories: vec![
-				"nodeinfo".to_string(),
-				"statistics".to_string(),
-				"neighbours".to_string(),
-			],
+			categories: vec!["nodeinfo".to_string(), "statistics".to_string(), "neighbours".to_string()],
 		}
 	}
 }

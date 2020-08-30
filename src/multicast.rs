@@ -1,6 +1,5 @@
 use crate::metrics;
 use crate::Timestamp;
-use crate::CONFIG;
 use chrono::Utc;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use flate2::read::DeflateDecoder;
@@ -49,7 +48,7 @@ impl RequesterService {
 
 		trace!("starting multicast service: scopeid={}", iface_n);
 		let socket_copy = socket.clone();
-		let handle = thread::spawn(move || receiver_loop(socket_copy, tx));
+		thread::spawn(move || receiver_loop(socket_copy, tx));
 
 		RequesterService {
 			interface: iface_n,
