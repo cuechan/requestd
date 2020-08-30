@@ -32,15 +32,19 @@ impl NodeDb {
 		// disable synchronization. too slow
 		db.pragma(None, "synchronous", &"OFF".to_string(), |_| Ok(())).unwrap();
 
-		Self { db: Arc::new(Mutex::new(db)) }
+		Self {
+			db: Arc::new(Mutex::new(db)),
+		}
 	}
 
 	pub fn get_node(&self, nodeid: &NodeId) -> Option<Node> {
-		let node = self
-			.db
-			.lock()
-			.unwrap()
-			.query_row("SELECT * FROM nodes WHERE nodeid == ?1", params![nodeid], |row| Ok(Node::from_row(row)));
+		let node =
+			self.db
+				.lock()
+				.unwrap()
+				.query_row("SELECT * FROM nodes WHERE nodeid == ?1", params![nodeid], |row| {
+					Ok(Node::from_row(row))
+				});
 
 		node.ok()
 	}
@@ -50,7 +54,9 @@ impl NodeDb {
 			.db
 			.lock()
 			.unwrap()
-			.query_row("SELECT COUNT(*) FROM nodes WHERE nodeid = ?1", params![nodeid], |row| row.get(0))
+			.query_row("SELECT COUNT(*) FROM nodes WHERE nodeid = ?1", params![nodeid], |row| {
+				row.get(0)
+			})
 			.unwrap();
 
 		count == 1
@@ -61,7 +67,10 @@ impl NodeDb {
 			.db
 			.lock()
 			.unwrap()
-			.execute("INSERT INTO nodes (nodeid, ) VALUES() nodes WHERE nodeid = ?1", params![])
+			.execute(
+				"INSERT INTO nodes (nodeid, ) VALUES() nodes WHERE nodeid = ?1",
+				params![],
+			)
 			.unwrap();
 	}
 
@@ -86,14 +95,20 @@ impl NodeDb {
 	}
 
 	pub fn set_status(&mut self, id: &NodeId, status: NodeStatus) -> Result<usize, sqlite::Error> {
-		self.db.lock().unwrap().execute("UPDATE nodes  SET (status) = (?2) WHERE nodeid = ?1", params![id, status])
+		self.db.lock().unwrap().execute(
+			"UPDATE nodes  SET (status) = (?2) WHERE nodeid = ?1",
+			params![id, status],
+		)
 	}
 
-	pub fn get_all_nodes(&mut self) -> Vec<Node> {
+	pub fn get_all_nodes(&self) -> Vec<Node> {
 		let db = self.db.lock().unwrap();
 		let mut stmt = db.prepare("SELECT * FROM nodes").unwrap();
 
-		stmt.query_map(NO_PARAMS, |row| Ok(Node::from_row(row))).unwrap().map(|n| n.unwrap()).collect()
+		stmt.query_map(NO_PARAMS, |row| Ok(Node::from_row(row)))
+			.unwrap()
+			.map(|n| n.unwrap())
+			.collect()
 	}
 
 	pub fn get_all_nodes_with_status(&mut self, status: NodeStatus) -> Vec<Node> {
@@ -109,7 +124,8 @@ impl NodeDb {
 	pub fn delete_node(&mut self, nodeid: &NodeId) {
 		let db = self.db.lock().unwrap();
 
-		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid]).unwrap();
+		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid])
+			.unwrap();
 	}
 }
 
@@ -205,6 +221,8 @@ impl sqlite::types::FromSql for NodeStatus {
 
 impl sqlite::ToSql for NodeStatus {
 	fn to_sql(&self) -> Result<sqlite::types::ToSqlOutput, sqlite::Error> {
-		Ok(sqlite::types::ToSqlOutput::Owned(sqlite::types::Value::Text(self.to_string())))
+		Ok(sqlite::types::ToSqlOutput::Owned(sqlite::types::Value::Text(
+			self.to_string(),
+		)))
 	}
 }

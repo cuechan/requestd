@@ -5,7 +5,7 @@ pub mod model;
 pub mod monitor;
 pub mod multicast;
 pub mod output;
-
+pub mod web_endpints;
 use chrono::{DateTime, Utc};
 use clap;
 use collector::nodedb;
@@ -84,6 +84,11 @@ fn cmd_collect() {
 	let db_c = db.clone();
 	std::thread::spawn(move || {
 		controlsocket::start(db_c, &CONFIG.controlsocket);
+	});
+
+	let db_c = db.clone();
+	std::thread::spawn(move || {
+		web_endpints::start_webendpoint(db_c);
 	});
 
 	let mut cllctr = Collector::new(db);
