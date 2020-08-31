@@ -11,7 +11,7 @@ use std::path::Path;
 
 /// at the moment we just dump the whole database
 /// Someday we accept commadns to manually request data
-pub fn start(mut db: NodeDb, address: &String) {
+pub fn start(db: NodeDb, address: &String) {
 	let path = Path::new(&address);
 	if path.exists() {
 		fs::remove_file(path).expect("can't remove old socket");

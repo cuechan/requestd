@@ -105,7 +105,7 @@ impl Collector {
 					if n.since_last_seen().num_seconds() as f64 > (2.0 * CONFIG.respondd.interval as f64)
 						&& n.is_online()
 					{
-						debug!(
+						trace!(
 							"{:#?}({}) hasn't responded for {}s",
 							n.nodeid,
 							n.status,
