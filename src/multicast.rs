@@ -41,7 +41,8 @@ impl RequesterService {
 		let socket = Arc::new(Mutex::new({
 			let s: Socket = Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp())).unwrap();
 			s.set_nonblocking(true).unwrap();
-			s.bind(&SockAddr::from("[::]:16000".parse::<SocketAddrV6>().unwrap())).unwrap();
+			s.bind(&SockAddr::from("[::]:16000".parse::<SocketAddrV6>().unwrap()))
+				.unwrap();
 			// s.set_ttl(1).unwrap();
 			s
 		}));
@@ -62,14 +63,17 @@ impl RequesterService {
 	pub fn request(&self, dst: &String, what: &Vec<String>) {
 		let mcast_address = SocketAddrV6::new(dst.parse().unwrap(), 1001, 0, self.interface);
 
-		trace!("requesting {:?} at {}", what, mcast_address);
+		trace!("requesting {:?}", what);
 
 		let ref socket = self.socket.lock().unwrap();
 
 		metrics::TOTAL_REQUESTS.inc();
 
 		socket
-			.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(mcast_address))
+			.send_to(
+				format!("GET {}", what.join(" ")).as_bytes(),
+				&SockAddr::from(mcast_address),
+			)
 			.expect("can't send data");
 	}
 
@@ -115,7 +119,9 @@ fn receiver_loop(socket: SharedSocket, tx: Sender<ResponddResponse>) {
 
 		let (bytes_read, remote) = recv_result.unwrap();
 		let mut response = String::new();
-		DeflateDecoder::new(&data[..bytes_read]).read_to_string(&mut response).unwrap();
+		DeflateDecoder::new(&data[..bytes_read])
+			.read_to_string(&mut response)
+			.unwrap();
 
 		let json_: Value = match json::from_str(&response) {
 			Err(e) => {

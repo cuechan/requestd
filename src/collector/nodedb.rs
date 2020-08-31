@@ -93,7 +93,7 @@ impl NodeDb {
 	pub fn insert_node(&mut self, n: &NodeResponse) -> Option<()> {
 		self.db
 			.lock()
-			.unwrap()
+			.expect("can't get database lock")
 			.execute(
 				"INSERT INTO nodes (nodeid, lastseen, firstseen, status, lastaddress, lastresponse)
 				VALUES             (?1,     ?2,       ?2,        ?5,     ?3,          ?4)
