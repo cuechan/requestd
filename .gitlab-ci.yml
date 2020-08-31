@@ -54,6 +54,9 @@ pages:
     - develop
   needs: ["build:deb", "deploy:doc"]
   script:
+    - cargo install cargo-deb
+    - cargo deb
+    - cargo doc
     - mkdir -p public
     - cp -r target/doc/* public/
     - cp -r target/debian/*.deb public/requestd.deb
