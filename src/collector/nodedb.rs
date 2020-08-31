@@ -6,7 +6,10 @@ use crate::CONFIG;
 use chrono;
 use chrono::DateTime;
 use chrono::Duration;
+use chrono::NaiveDateTime;
+use chrono::TimeZone;
 use chrono::Utc;
+use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use rusqlite as sqlite;
@@ -14,8 +17,10 @@ use rusqlite::params;
 use rusqlite::types::FromSqlError;
 use rusqlite::NO_PARAMS;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use serde_json::Value;
 use std::fmt::{self, Display};
+use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -27,6 +32,17 @@ pub struct NodeDb {
 impl NodeDb {
 	pub fn new(path: &str) -> Self {
 		let db = sqlite::Connection::open(path).unwrap();
+		db.execute_batch(include_str!("./init_db.sql")).unwrap();
+
+		// disable synchronization. too slow
+		db.pragma(None, "synchronous", &"OFF".to_string(), |_| Ok(())).unwrap();
+
+		Self {
+			db: Arc::new(Mutex::new(db)),
+		}
+	}
+
+	pub fn with_connection(db: sqlite::Connection) -> Self {
 		db.execute_batch(include_str!("./init_db.sql")).unwrap();
 
 		// disable synchronization. too slow
@@ -83,7 +99,7 @@ impl NodeDb {
 				VALUES             (?1,     ?2,       ?2,        ?5,     ?3,          ?4)
 				ON CONFLICT(nodeid) DO UPDATE SET
 				(lastseen, lastaddress, status, lastresponse) =
-				(?2,       ?3,          ?5,   ?4)",
+				(?2,       ?3,          ?5,     ?4)",
 				params![n.nodeid, n.timestamp, n.remote.to_string(), n.data, NodeStatus::Up],
 			)
 			.map_err(|e| {
@@ -225,4 +241,36 @@ impl sqlite::ToSql for NodeStatus {
 			self.to_string(),
 		)))
 	}
+}
+
+#[test]
+fn test_node_insert() {
+	use chrono;
+
+	let mut db = NodeDb::with_connection(sqlite::Connection::open_in_memory().unwrap());
+
+	let NODEID: String = "deadbeef".to_string();
+	let FIRST_INSERT: DateTime<Utc> = Utc.ymd(2020, 1, 1).and_hms(0, 0, 0);
+	let UPDATE_INSERT: DateTime<Utc> = Utc.ymd(2020, 1, 1).and_hms(0, 3, 0);
+
+	let mut node_response = NodeResponse {
+		timestamp: FIRST_INSERT.clone(),
+		nodeid: NODEID.clone(),
+		data: json!({"test": "data"}),
+		remote: "fdef:ffc0:3dd7:0:fa1a:67ff:fed8:e008".parse().unwrap(),
+	};
+
+	db.insert_node(&node_response);
+	let saved_node: Node = db.get_node(&NODEID.clone()).unwrap();
+
+	assert_eq!(FIRST_INSERT, saved_node.first_seen);
+	assert_eq!(FIRST_INSERT, saved_node.last_seen);
+
+	node_response.timestamp = UPDATE_INSERT;
+	db.insert_node(&node_response);
+
+	let saved_node: Node = db.get_node(&NODEID.clone()).unwrap();
+	assert_eq!(NodeStatus::Up, saved_node.status);
+	assert_eq!(FIRST_INSERT, saved_node.first_seen);
+	assert_eq!(UPDATE_INSERT, saved_node.last_seen);
 }
