@@ -30,12 +30,6 @@ def get_all_nodes():
 data = get_all_nodes()
 # print(json.dumps(data, indent=4, sort_keys=True))
 
-hopglass_nodes = {
-	'timestamp': datetime.datetime.utcnow().isoformat(),
-	'version': 2,
-	'nodes': []
-}
-
 hopglass_graph = {
 	'timestamp': datetime.datetime.utcnow().isoformat(),
 	'version': 1,
@@ -48,7 +42,6 @@ hopglass_graph = {
 }
 
 graph_nodes = []
-
 
 # print(graph_nodes)
 
@@ -65,20 +58,12 @@ def get_graphnode_idx_by_iface(iface):
 
 for node in data:
 	nodeinfo = node['last_response']['nodeinfo']
-	hg_node = dict()
 	links = []
 
+	if node['status'] != 'Up':
+		continue
+
 	try:
-		hg_node['flags'] = {'online': node['status'] == 'Up'}
-		# print(node['status'])
-
-		hg_node["nodeinfo"]   = node['last_response']['nodeinfo']
-		hg_node['statistics'] = node['last_response']['statistics']
-		hg_node['statistics'] = node['last_response']['statistics']
-		hg_node['firstseen']  = node['first_seen']
-		hg_node['lastseen']   = node['last_seen']
-
-
 		# for ifacetype, mac in nodeinfo['network']['mesh']['bat0']['interfaces'].items():
 		# 	# check if we mesh on this interface
 		# 	# if mac in node['last_response']['neighbors']['batadv']:
@@ -116,7 +101,6 @@ for node in data:
 		print(f"{node['nodeid']} has incomplete response. missing {e}. ignore")
 		# exit(0)
 
-	hopglass_nodes['nodes'].append(hg_node)
 	hopglass_graph['batadv']['links'].extend(links)
 
 
