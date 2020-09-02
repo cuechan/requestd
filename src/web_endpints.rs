@@ -50,7 +50,10 @@ fn process_request(req: Request, db: NodeDb) {
 	info!("response payload is {} bytes", out.len());
 
 	let response = Response::new(StatusCode::from(200), vec![], out.as_slice(), None, None);
-	req.respond(response).unwrap();
+
+	if let Err(e) = req.respond(response) {
+		warn!("could not respond to web requestd: {}", e);
+	}
 	// cmd.wait().unwrap();
 }
 
