@@ -58,7 +58,8 @@ memory_usage = Gauge('knoten_memory', 'memory usage', default_labels, namespace=
 memory_total = Gauge('knoten_memory_total', 'memory total', default_labels, namespace='gluon', registry=registry)
 memory_free = Gauge('knoten_memory_free', 'memory free', default_labels, namespace='gluon', registry=registry)
 
-domain_counter = Gauge('domain_total', 'domain code', ['domain'], namespace='gluon', registry=registry)
+batman_adv = Gauge('knoten_batadv_compat', 'batman compat', default_labels+['compat'], namespace='gluon', registry=registry)
+domain_counter = Gauge('domain_total', 'domain code', default_labels+['domain'], namespace='gluon', registry=registry)
 nodes_total  = Gauge('knoten_total', 'total online nodes', namespace='gluon', registry=registry)
 nodes_online = Gauge('total_online', 'total online nodes', namespace='gluon', registry=registry)
 clients_total = Gauge('clients_total', 'clients total', namespace='gluon', registry=registry)
@@ -132,7 +133,8 @@ for node in data:
 		process.labels(**deflbl, type='total').set(d['statistics']['processes']['total'])
 		process.labels(**deflbl, type='running').set(d['statistics']['processes']['running'])
 
-		domain_counter.labels(domain=d['nodeinfo']['system']['domain_code']).inc()
+		domain_counter.labels(**deflbl, domain=d['nodeinfo']['system']['domain_code']).inc()
+		batman_adv.labels(**deflbl, compat=d['nodeinfo']['software']['batman-adv']['compat']).inc()
 
 
 
