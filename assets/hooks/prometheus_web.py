@@ -54,9 +54,10 @@ process = Gauge('knoten_process', 'process', default_labels+['type'], namespace=
 meshvpn = Gauge('knoten_meshvpn', 'meshvpn', default_labels+['peer', 'group'], namespace='gluon', registry=registry)
 cpu = Gauge('knoten_cpu', 'cpu', default_labels+['mode'], namespace='gluon', registry=registry)
 
-memory_usage = Gauge('knoten_memory', 'memory usage', default_labels, namespace='gluon', registry=registry)
+memory_usage = Gauge('knoten_memory_usage', 'memory usage', default_labels, namespace='gluon', registry=registry)
 memory_total = Gauge('knoten_memory_total', 'memory total', default_labels, namespace='gluon', registry=registry)
-memory_free = Gauge('knoten_memory_free', 'memory free', default_labels, namespace='gluon', registry=registry)
+memory = Gauge('knoten_memory', 'memory', default_labels+['type'], namespace='gluon', registry=registry)
+
 
 batman_adv = Gauge('knoten_batadv_compat', 'batman compat', default_labels+['compat'], namespace='gluon', registry=registry)
 domain_counter = Gauge('domain_total', 'domain code', default_labels+['domain'], namespace='gluon', registry=registry)
@@ -124,8 +125,11 @@ for node in data:
 
 		# memory
 		memory_usage.labels(**deflbl).set(1-(d['statistics']['memory']['free']/d['statistics']['memory']['total']))
-		memory_free.labels(**deflbl).set(d['statistics']['memory']['free'])
 		memory_total.labels(**deflbl).set(d['statistics']['memory']['total'])
+
+		for what,val in d['statistics']['memory'].items():
+			memory.labels(**deflbl, type=what).set(val)
+
 
 		rootfs.labels(**deflbl).set(d['statistics']['rootfs_usage'])
 		time.labels(**deflbl).set(d['statistics']['time'])
