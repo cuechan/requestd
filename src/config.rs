@@ -19,6 +19,8 @@ pub struct Config {
 	pub events: Events,
 	pub controlsocket: String,
 	pub concurrent_hooks: u64,
+	pub web_listen: String,
+	pub web_endpoints: Vec<WebEndpoint>,
 }
 
 impl Config {
@@ -26,7 +28,10 @@ impl Config {
 		let path = matches
 			.value_of("config")
 			.or(get_first_file_found(DEFAULT_CONF_FILES))
-			.expect(&format!("no config found. expected in some of these locations: {:?}", DEFAULT_CONF_FILES));
+			.expect(&format!(
+				"no config found. expected in some of these locations: {:?}",
+				DEFAULT_CONF_FILES
+			));
 
 		let mut config_str = String::new();
 		match File::open(path) {
@@ -66,8 +71,10 @@ impl Default for Config {
 			database: DbConfig::default(),
 			respondd: Respondd::default(),
 			events: Events::default(),
-			controlsocket: "/var/run/requestd.sock".to_string(),
+			controlsocket: "/tmp/requestd.sock".to_string(),
 			concurrent_hooks: 4,
+			web_listen: "[::]:21001".to_string(),
+			web_endpoints: vec![],
 		}
 	}
 }
@@ -109,7 +116,11 @@ impl Default for Respondd {
 			timeout: 5,
 			interval: 15,
 			multicast_address: "ff05::2:1001".to_string(),
-			categories: vec!["nodeinfo".to_string(), "statistics".to_string(), "neighbours".to_string()],
+			categories: vec![
+				"nodeinfo".to_string(),
+				"statistics".to_string(),
+				"neighbours".to_string(),
+			],
 		}
 	}
 }
@@ -140,4 +151,11 @@ pub struct Event {
 	pub exec: String,
 	#[serde(default)]
 	pub vars: HashMap<String, String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct WebEndpoint {
+	pub path: String,
+	pub exec: String,
+	// pub timeout: u64,
 }

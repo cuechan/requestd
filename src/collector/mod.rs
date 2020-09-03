@@ -88,9 +88,11 @@ impl Collector {
 					}
 
 					if n.is_offline() && n.status == NodeStatus::Up {
-						info!("offline node found: {}", n.nodeid);
-						info!("    last seen:     {}", n.last_seen);
-						info!("    offline since: {}s", n.since_last_seen().num_seconds());
+						info!(
+							"offline node found: {}, last seen: {}s ago ",
+							n.nodeid,
+							n.since_last_seen().num_seconds()
+						);
 						// first, mark node as offline
 						db_copy.set_status(&n.nodeid, NodeStatus::Down);
 						// then trigger the event
@@ -100,10 +102,15 @@ impl Collector {
 					}
 
 					// check if the node needs some attention
-					if n.since_last_seen().num_seconds() as f64 > (2.0 * CONFIG.respondd.interval as f64) && n.is_online() {
-						info!("requesting data from {:#?} directly", n.nodeid);
-						info!("    last seen: {:#?}s ago", n.since_last_seen().num_seconds());
-						info!("       status: {:#?}", n.status);
+					if n.since_last_seen().num_seconds() as f64 > (2.0 * CONFIG.respondd.interval as f64)
+						&& n.is_online()
+					{
+						trace!(
+							"{:#?}({}) hasn't responded for {}s",
+							n.nodeid,
+							n.status,
+							n.since_last_seen().num_seconds()
+						);
 						requester.request(&n.last_address, &CONFIG.respondd.categories);
 					}
 				}
@@ -147,7 +154,10 @@ impl EventRunner {
 		for i in 0..CONFIG.concurrent_hooks - 1 {
 			let own_receiver = receiver.clone();
 
-			thread::Builder::new().name(format!("hook_runner_{}", i)).spawn(move || hook_worker(own_receiver)).unwrap();
+			thread::Builder::new()
+				.name(format!("hook_runner_{}", i))
+				.spawn(move || hook_worker(own_receiver))
+				.unwrap();
 		}
 
 		Self { threads: sender }
@@ -158,14 +168,14 @@ impl EventRunner {
 
 		match e {
 			Event::NodeOffline => {
-				info!("node is offline {}", n.nodeid);
+				debug!("node is offline {}", n.nodeid);
 
 				for hook in &CONFIG.events.node_offline {
 					self.threads.send((hook.clone(), n.clone())).unwrap();
 				}
 			}
 			Event::NewNode => {
-				// info!("a new node {}", n.nodeid);
+				debug!("a new node {}", n.nodeid);
 				for hook in &CONFIG.events.new_node {
 					self.threads.send((hook.clone(), n.clone())).unwrap();
 				}
@@ -176,6 +186,7 @@ impl EventRunner {
 				}
 			}
 			Event::NodeOnlineAfterOffline => {
+				debug!("node is online again {}", n.nodeid);
 				for hook in &CONFIG.events.online_after_offline {
 					self.threads.send((hook.clone(), n.clone())).unwrap();
 				}
@@ -190,12 +201,7 @@ impl EventRunner {
 }
 
 fn hook_worker(receiver: Receiver<(config::Event, Node)>) {
-	// 	let mut db = triggerdb::TriggerDb::new(Arc::new(Mutex::new(
-	// 		sqlite::Connection::open(&CONFIG.database.dbfile).unwrap()
-	// 	)));
-
 	for (event, n) in receiver {
-		trace!("running hook: {}", event.exec);
 		#[allow(unused_must_use)]
 		event_trigger(event.clone(), n).map_err(|e| {
 			error!("running hook '{}' failed: {}", event.exec, e);
@@ -205,7 +211,10 @@ fn hook_worker(receiver: Receiver<(config::Event, Node)>) {
 
 pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 	let vars = event.vars.iter().map(|(var, q)| {
-		let val = jq::compile(q).unwrap().run(&json::to_string(&n.last_response).unwrap()).unwrap();
+		let val = jq::compile(q)
+			.unwrap()
+			.run(&json::to_string(&n.last_response).unwrap())
+			.unwrap();
 
 		// workaround because jq_rs does not support the -r flag
 		// True is converted to `1` and false to an empty string
@@ -220,7 +229,10 @@ pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 		(var, val_nice)
 	});
 
-	let mut cmd = Command::new(&event.exec).envs(vars).stdin(process::Stdio::piped()).spawn()?;
+	let mut cmd = Command::new(&event.exec)
+		.envs(vars)
+		.stdin(process::Stdio::piped())
+		.spawn()?;
 
 	let stdin = cmd.stdin.as_mut().expect("can't get stdin");
 

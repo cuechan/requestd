@@ -10,8 +10,6 @@ import datetime
 
 # load environment vars
 CONTROLSOCKET = os.environ.get('REQUESTD_CTRLSOCKET', '/tmp/requestd.sock')
-FILENODES = "./nodes.json"
-FILEGRAPH = "./graph.json"
 
 
 def eprint(*args, **kwargs):
@@ -124,8 +122,5 @@ for node in data:
 
 hopglass_graph['batadv']['nodes'] = [{'id': n['id'], 'node_id': n['node_id']} for n in graph_nodes]
 
-with open(FILENODES, 'w') as outfile:
-	json.dump(hopglass_nodes, outfile)
-
-with open(FILEGRAPH, 'w') as outfile:
-	json.dump(hopglass_graph, outfile)
+json.dump(hopglass_nodes, sys.stdout)
+# print(json.dumps(node, indent=4, sort_keys=True))

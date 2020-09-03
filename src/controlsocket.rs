@@ -11,14 +11,17 @@ use std::path::Path;
 
 /// at the moment we just dump the whole database
 /// Someday we accept commadns to manually request data
-pub fn start(mut db: NodeDb, address: &String) {
+pub fn start(db: NodeDb, address: &String) {
 	let path = Path::new(&address);
 	if path.exists() {
 		fs::remove_file(path).expect("can't remove old socket");
 	}
 
 	let listener = net::UnixListener::bind(address).expect("can't bind to unixsocket");
-	debug!("bind to socket: {:#?}", listener.local_addr().unwrap().as_pathname().unwrap());
+	debug!(
+		"bind to socket: {:#?}",
+		listener.local_addr().unwrap().as_pathname().unwrap()
+	);
 
 	let f = unsafe { fs::File::from_raw_fd(listener.as_raw_fd()) };
 	let mut p = f.metadata().unwrap().permissions();

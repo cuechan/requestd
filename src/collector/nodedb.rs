@@ -6,7 +6,10 @@ use crate::CONFIG;
 use chrono;
 use chrono::DateTime;
 use chrono::Duration;
+use chrono::NaiveDateTime;
+use chrono::TimeZone;
 use chrono::Utc;
+use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use rusqlite as sqlite;
@@ -14,8 +17,10 @@ use rusqlite::params;
 use rusqlite::types::FromSqlError;
 use rusqlite::NO_PARAMS;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use serde_json::Value;
 use std::fmt::{self, Display};
+use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -32,15 +37,30 @@ impl NodeDb {
 		// disable synchronization. too slow
 		db.pragma(None, "synchronous", &"OFF".to_string(), |_| Ok(())).unwrap();
 
-		Self { db: Arc::new(Mutex::new(db)) }
+		Self {
+			db: Arc::new(Mutex::new(db)),
+		}
+	}
+
+	pub fn with_connection(db: sqlite::Connection) -> Self {
+		db.execute_batch(include_str!("./init_db.sql")).unwrap();
+
+		// disable synchronization. too slow
+		db.pragma(None, "synchronous", &"OFF".to_string(), |_| Ok(())).unwrap();
+
+		Self {
+			db: Arc::new(Mutex::new(db)),
+		}
 	}
 
 	pub fn get_node(&self, nodeid: &NodeId) -> Option<Node> {
-		let node = self
-			.db
-			.lock()
-			.unwrap()
-			.query_row("SELECT * FROM nodes WHERE nodeid == ?1", params![nodeid], |row| Ok(Node::from_row(row)));
+		let node =
+			self.db
+				.lock()
+				.unwrap()
+				.query_row("SELECT * FROM nodes WHERE nodeid == ?1", params![nodeid], |row| {
+					Ok(Node::from_row(row))
+				});
 
 		node.ok()
 	}
@@ -50,7 +70,9 @@ impl NodeDb {
 			.db
 			.lock()
 			.unwrap()
-			.query_row("SELECT COUNT(*) FROM nodes WHERE nodeid = ?1", params![nodeid], |row| row.get(0))
+			.query_row("SELECT COUNT(*) FROM nodes WHERE nodeid = ?1", params![nodeid], |row| {
+				row.get(0)
+			})
 			.unwrap();
 
 		count == 1
@@ -61,20 +83,23 @@ impl NodeDb {
 			.db
 			.lock()
 			.unwrap()
-			.execute("INSERT INTO nodes (nodeid, ) VALUES() nodes WHERE nodeid = ?1", params![])
+			.execute(
+				"INSERT INTO nodes (nodeid, ) VALUES() nodes WHERE nodeid = ?1",
+				params![],
+			)
 			.unwrap();
 	}
 
 	pub fn insert_node(&mut self, n: &NodeResponse) -> Option<()> {
 		self.db
 			.lock()
-			.unwrap()
+			.expect("can't get database lock")
 			.execute(
 				"INSERT INTO nodes (nodeid, lastseen, firstseen, status, lastaddress, lastresponse)
 				VALUES             (?1,     ?2,       ?2,        ?5,     ?3,          ?4)
 				ON CONFLICT(nodeid) DO UPDATE SET
 				(lastseen, lastaddress, status, lastresponse) =
-				(?2,       ?3,          ?5,   ?4)",
+				(?2,       ?3,          ?5,     ?4)",
 				params![n.nodeid, n.timestamp, n.remote.to_string(), n.data, NodeStatus::Up],
 			)
 			.map_err(|e| {
@@ -86,14 +111,20 @@ impl NodeDb {
 	}
 
 	pub fn set_status(&mut self, id: &NodeId, status: NodeStatus) -> Result<usize, sqlite::Error> {
-		self.db.lock().unwrap().execute("UPDATE nodes  SET (status) = (?2) WHERE nodeid = ?1", params![id, status])
+		self.db.lock().unwrap().execute(
+			"UPDATE nodes  SET (status) = (?2) WHERE nodeid = ?1",
+			params![id, status],
+		)
 	}
 
-	pub fn get_all_nodes(&mut self) -> Vec<Node> {
+	pub fn get_all_nodes(&self) -> Vec<Node> {
 		let db = self.db.lock().unwrap();
 		let mut stmt = db.prepare("SELECT * FROM nodes").unwrap();
 
-		stmt.query_map(NO_PARAMS, |row| Ok(Node::from_row(row))).unwrap().map(|n| n.unwrap()).collect()
+		stmt.query_map(NO_PARAMS, |row| Ok(Node::from_row(row)))
+			.unwrap()
+			.map(|n| n.unwrap())
+			.collect()
 	}
 
 	pub fn get_all_nodes_with_status(&mut self, status: NodeStatus) -> Vec<Node> {
@@ -109,7 +140,8 @@ impl NodeDb {
 	pub fn delete_node(&mut self, nodeid: &NodeId) {
 		let db = self.db.lock().unwrap();
 
-		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid]).unwrap();
+		db.execute("DELETE FROM nodes WHERE nodeid=?1", params![nodeid])
+			.unwrap();
 	}
 }
 
@@ -205,6 +237,40 @@ impl sqlite::types::FromSql for NodeStatus {
 
 impl sqlite::ToSql for NodeStatus {
 	fn to_sql(&self) -> Result<sqlite::types::ToSqlOutput, sqlite::Error> {
-		Ok(sqlite::types::ToSqlOutput::Owned(sqlite::types::Value::Text(self.to_string())))
+		Ok(sqlite::types::ToSqlOutput::Owned(sqlite::types::Value::Text(
+			self.to_string(),
+		)))
 	}
+}
+
+#[test]
+fn test_node_insert() {
+	use chrono;
+
+	let mut db = NodeDb::with_connection(sqlite::Connection::open_in_memory().unwrap());
+
+	let NODEID: String = "deadbeef".to_string();
+	let FIRST_INSERT: DateTime<Utc> = Utc.ymd(2020, 1, 1).and_hms(0, 0, 0);
+	let UPDATE_INSERT: DateTime<Utc> = Utc.ymd(2020, 1, 1).and_hms(0, 3, 0);
+
+	let mut node_response = NodeResponse {
+		timestamp: FIRST_INSERT.clone(),
+		nodeid: NODEID.clone(),
+		data: json!({"test": "data"}),
+		remote: "fdef:ffc0:3dd7:0:fa1a:67ff:fed8:e008".parse().unwrap(),
+	};
+
+	db.insert_node(&node_response);
+	let saved_node: Node = db.get_node(&NODEID.clone()).unwrap();
+
+	assert_eq!(FIRST_INSERT, saved_node.first_seen);
+	assert_eq!(FIRST_INSERT, saved_node.last_seen);
+
+	node_response.timestamp = UPDATE_INSERT;
+	db.insert_node(&node_response);
+
+	let saved_node: Node = db.get_node(&NODEID.clone()).unwrap();
+	assert_eq!(NodeStatus::Up, saved_node.status);
+	assert_eq!(FIRST_INSERT, saved_node.first_seen);
+	assert_eq!(UPDATE_INSERT, saved_node.last_seen);
 }

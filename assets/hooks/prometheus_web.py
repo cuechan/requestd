@@ -8,6 +8,7 @@ from ipaddress import *
 from time import time
 import datetime
 from prometheus_client import CollectorRegistry, Gauge, Counter, push_to_gateway, delete_from_gateway
+import prometheus_client
 
 # load environment vars
 CONTROLSOCKET = os.environ.get('REQUESTD_CTRLSOCKET', '/tmp/requestd.sock')
@@ -29,11 +30,16 @@ def get_all_nodes():
 		data += buffer
 	return json.loads(data)
 
+
 data = get_all_nodes()
+# data = json.load(sys.stdin)
+# print(json.dumps(data, indent=4, sort_keys=True))
+
+
+
 
 
 registry = CollectorRegistry(auto_describe=True)
-
 default_labels = ['nodeid', 'hostname', 'fw']
 
 online = Gauge('knoten_online', 'online', default_labels, namespace='gluon', registry=registry)
@@ -48,11 +54,13 @@ process = Gauge('knoten_process', 'process', default_labels+['type'], namespace=
 meshvpn = Gauge('knoten_meshvpn', 'meshvpn', default_labels+['peer', 'group'], namespace='gluon', registry=registry)
 cpu = Gauge('knoten_cpu', 'cpu', default_labels+['mode'], namespace='gluon', registry=registry)
 
-memory_usage = Gauge('knoten_memory', 'memory usage', default_labels, namespace='gluon', registry=registry)
+memory_usage = Gauge('knoten_memory_usage', 'memory usage', default_labels, namespace='gluon', registry=registry)
 memory_total = Gauge('knoten_memory_total', 'memory total', default_labels, namespace='gluon', registry=registry)
-memory_free = Gauge('knoten_memory_free', 'memory free', default_labels, namespace='gluon', registry=registry)
+memory = Gauge('knoten_memory', 'memory', default_labels+['type'], namespace='gluon', registry=registry)
 
-domain_counter = Gauge('domain_total', 'domain code', ['domain'], namespace='gluon', registry=registry)
+
+batman_adv = Gauge('knoten_batadv_compat', 'batman compat', default_labels+['compat'], namespace='gluon', registry=registry)
+domain_counter = Gauge('domain_total', 'domain code', default_labels+['domain'], namespace='gluon', registry=registry)
 nodes_total  = Gauge('knoten_total', 'total online nodes', namespace='gluon', registry=registry)
 nodes_online = Gauge('total_online', 'total online nodes', namespace='gluon', registry=registry)
 clients_total = Gauge('clients_total', 'clients total', namespace='gluon', registry=registry)
@@ -117,8 +125,11 @@ for node in data:
 
 		# memory
 		memory_usage.labels(**deflbl).set(1-(d['statistics']['memory']['free']/d['statistics']['memory']['total']))
-		memory_free.labels(**deflbl).set(d['statistics']['memory']['free'])
 		memory_total.labels(**deflbl).set(d['statistics']['memory']['total'])
+
+		for what,val in d['statistics']['memory'].items():
+			memory.labels(**deflbl, type=what).set(val)
+
 
 		rootfs.labels(**deflbl).set(d['statistics']['rootfs_usage'])
 		time.labels(**deflbl).set(d['statistics']['time'])
@@ -126,17 +137,21 @@ for node in data:
 		process.labels(**deflbl, type='total').set(d['statistics']['processes']['total'])
 		process.labels(**deflbl, type='running').set(d['statistics']['processes']['running'])
 
-		domain_counter.labels(domain=d['nodeifno']['system']['domain_code']).inc()
+		domain_counter.labels(**deflbl, domain=d['nodeinfo']['system']['domain_code']).inc()
+		batman_adv.labels(**deflbl, compat=d['nodeinfo']['software']['batman-adv']['compat']).inc()
 
 
 
 	except KeyError as e:
-		print(f"{node['nodeid']} has incomplete response. missing {e}. ignore")
+		eprint(f"{node['nodeid']} has incomplete response. missing {e}. ignore")
+		# eprint(json.dumps(node, indent=4, sort_keys=True))
 		# exit(0)
 
 
-delete_from_gateway(PUSHGATEWAY, 'knoten')
-push_to_gateway(PUSHGATEWAY, job='knoten', registry=registry)
+# delete_from_gateway(PUSHGATEWAY, 'knoten')
+# push_to_gateway(PUSHGATEWAY, job='knoten', registry=registry)
 
-# with open(FILEGRAPH, 'w') as outfile:
-# 	json.dump(hopglass_graph, outfile)
+sys.stdout.buffer.write(prometheus_client.generate_latest(registry=registry))
+# print(prometheus_client.generate_latest(registry=registry))
+
+eprint("done")
