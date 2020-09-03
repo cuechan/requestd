@@ -61,7 +61,7 @@ impl RequesterService {
 
 	/// Request a specific response
 	pub fn request(&self, dst: &String, what: &Vec<String>) {
-		let mcast_address = SocketAddrV6::new(dst.parse().unwrap(), 1001, 0, self.interface);
+		let dest = SocketAddrV6::new(dst.parse().unwrap(), 1001, 0, self.interface);
 
 		trace!("requesting {:?}", what);
 
@@ -69,10 +69,7 @@ impl RequesterService {
 
 		metrics::TOTAL_REQUESTS.inc();
 
-		if let Err(e) = socket.send_to(
-			format!("GET {}", what.join(" ")).as_bytes(),
-			&SockAddr::from(mcast_address),
-		) {
+		if let Err(e) = socket.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(dest)) {
 			error!("can't send multicast data: {}", e);
 			info!("is there a route configured? see https://github.com/nodejs/help/issues/2073#issuecomment-533834373");
 		}
