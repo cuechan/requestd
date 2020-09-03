@@ -61,7 +61,7 @@ impl RequesterService {
 
 	/// Request a specific response
 	pub fn request(&self, dst: &String, what: &Vec<String>) {
-		let mcast_address = SocketAddrV6::new(dst.parse().unwrap(), 1001, 0, self.interface);
+		let dest = SocketAddrV6::new(dst.parse().unwrap(), 1001, 0, self.interface);
 
 		trace!("requesting {:?}", what);
 
