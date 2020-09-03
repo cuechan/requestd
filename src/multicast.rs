@@ -68,9 +68,10 @@ impl RequesterService {
 
 		metrics::TOTAL_REQUESTS.inc();
 
-		socket
-			.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(mcast_address))
-			.expect("can't send data");
+		if let Err(e) = socket.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(dest)) {
+			error!("can't send multicast data to {}: {}", dest, e);
+			info!("is there a route configured? see https://github.com/nodejs/help/issues/2073#issuecomment-533834373");
+		}
 	}
 
 	/// get the a receiver where all parsed messages will pop out
