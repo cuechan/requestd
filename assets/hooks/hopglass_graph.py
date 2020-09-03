@@ -35,7 +35,7 @@ hopglass_graph = {
 	'version': 1,
 	'batadv': {
 		'multigraph': False,
-		'directed': False,
+		'directed': True,
 		'nodes': [],
 		'links': []
 	}
@@ -46,59 +46,81 @@ graph_nodes = []
 # print(graph_nodes)
 
 
-def get_graphnode_idx_by_iface(iface):
+def get_graphnode_idx_by_mac(mac):
 	for idx,node in enumerate(graph_nodes):
-		if iface in node.get('interfaces', []):
-			# found
+		if mac in node['ifaces']:
 			return idx
-
 	return -1
 
+
+def get_graphnode_idx_by_id(mac):
+	for idx,node in enumerate(graph_nodes):
+		if node['id'] == mac:
+			return idx
+	return -1
 
 
 for node in data:
 	nodeinfo = node['last_response']['nodeinfo']
+	nodeid = nodeinfo['node_id']
+	id = nodeinfo['network']['mac']
+	links = []
+
+	if node['status'] != 'Up':
+		continue
+
+	graphnode = {
+		'node_id': nodeid,
+		'id': id,
+		'ifaces': {}
+	}
+
+	try:
+		for type_, addresses in nodeinfo['network']['mesh']['bat0']['interfaces'].items():
+			if type_ == 'tunnel':
+				type_ = 'fastd'
+			for addr in addresses:
+				graphnode['ifaces'][addr] = type_
+
+
+		graph_nodes.append(graphnode)
+
+	except KeyError as e:
+		eprint(f"{node['nodeid']} has incomplete response. missing {e}. ignore")
+		# exit(0)
+
+# print(json.dumps(graph_nodes, indent=4))
+
+for node in data:
+	nodeinfo = node['last_response']['nodeinfo']
+	nodeid = nodeinfo['node_id']
 	links = []
 
 	if node['status'] != 'Up':
 		continue
 
 	try:
-		# for ifacetype, mac in nodeinfo['network']['mesh']['bat0']['interfaces'].items():
-		# 	# check if we mesh on this interface
-		# 	# if mac in node['last_response']['neighbors']['batadv']:
-		# 	pass
-
-
 		# check batadv neighbours
 		for iface,neighbours in  node['last_response']['neighbours']['batadv'].items():
-			# do we have neighbors?
-			# print(f"{iface}")
-			if get_graphnode_idx_by_iface(iface) == -1:
-				interfaces = [nodeinfo['network']['mac']]
-				for x,a in nodeinfo['network']['mesh']['bat0']['interfaces'].items():
-					interfaces.extend(a)
+			myIndex = get_graphnode_idx_by_mac(iface)
 
-				graph_nodes.append({
-					'node_id': node['nodeid'],
-					'id': nodeinfo['network']['mac'],
-					'interfaces': interfaces
+			for remote_iface,vals in neighbours['neighbours'].items():
+				# check if our neighbour is already in index. if so add the link
+				# eprint(neighbour, vals)
+
+				neighbour_idx = get_graphnode_idx_by_mac(remote_iface)
+				if neighbour_idx < 0:
+					continue
+
+				links.append({
+					'source': myIndex,
+					'target': neighbour_idx,
+					'tq': 1 if vals['tq'] == 0 else 255 / vals['tq'],
+					'type': graph_nodes[myIndex]['ifaces'][iface]
 				})
 
-			myIndex = get_graphnode_idx_by_iface(nodeinfo['network']['mac'])
-
-			for neighbour,vals in neighbours['neighbours'].items():
-				# check if our neighbour is already in index. if so add the link
-				if get_graphnode_idx_by_iface(neighbour) != -1:
-					links.append({
-						'source': myIndex,
-						'target': get_graphnode_idx_by_iface(neighbour),
-						'tq': 1 if vals['tq'] == 0 else 255 / vals['tq'],
-						'type': 'batadv' # TODO: check interface type
-					})
-
 	except KeyError as e:
-		print(f"{node['nodeid']} has incomplete response. missing {e}. ignore")
+		eprint(f"{node['nodeid']} has incomplete response. missing {e}. ignore")
 		# exit(0)
 
 	hopglass_graph['batadv']['links'].extend(links)
@@ -107,4 +129,4 @@ for node in data:
 hopglass_graph['batadv']['nodes'] = [{'id': n['id'], 'node_id': n['node_id']} for n in graph_nodes]
 
 
-json.dump(hopglass_graph, sys.stdout)
+json.dump(hopglass_graph, sys.stdout, indent=4)
