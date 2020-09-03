@@ -1,3 +1,7 @@
+controlsocket: /tmp/requestd.sock
+concurrent_hooks: 2
+web_listen: "[::]:21001"
+
 respondd:
   interface: "ffhl"
   # https://gluon.readthedocs.io/en/v2020.1.x/features/monitoring.html#gluon-respondd
@@ -14,8 +18,6 @@ database:
   # evaluate database every n seconds (searching for offline nodes)
   evaluate_every: 15
 
-controlsocket: /tmp/requestd.sock
-concurrent_hooks: 2
 events:
   # triggered when a new node appears
   # the last response from a node will be send to stdin of your script

@@ -19,6 +19,7 @@ pub struct Config {
 	pub events: Events,
 	pub controlsocket: String,
 	pub concurrent_hooks: u64,
+	pub web_listen: String,
 	pub web_endpoints: Vec<WebEndpoint>,
 }
 
@@ -72,6 +73,7 @@ impl Default for Config {
 			events: Events::default(),
 			controlsocket: "/tmp/requestd.sock".to_string(),
 			concurrent_hooks: 4,
+			web_listen: "[::]:21001".to_string(),
 			web_endpoints: vec![],
 		}
 	}

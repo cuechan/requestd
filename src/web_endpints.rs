@@ -5,10 +5,8 @@ use log::{error, info, warn};
 use serde_json as json;
 use socket2;
 use std::io::{BufReader, BufWriter, Read, Write};
-use std::process::{self, Child, Command, Stdio};
+use std::process::{self, exit, Child, Command, Stdio};
 use tiny_http::{self, Request, Response, Server, StatusCode};
-
-const ADDRESS: &str = "[::]:21001";
 
 fn process_request(req: Request, db: NodeDb) {
 	let hook = match CONFIG.web_endpoints.iter().find(|x| x.path == req.url()) {
@@ -58,7 +56,13 @@ fn process_request(req: Request, db: NodeDb) {
 }
 
 pub fn start_webendpoint(nodedb: NodeDb) {
-	let server: Server = tiny_http::Server::http(ADDRESS).unwrap();
+	let server: Server = match tiny_http::Server::http(&CONFIG.web_listen) {
+		Err(e) => {
+			error!("can't start http server for web_hooks: {}", e);
+			exit(1);
+		}
+		Ok(r) => r,
+	};
 
 	for req in server.incoming_requests() {
 		info!("a new request for {}", req.url());
