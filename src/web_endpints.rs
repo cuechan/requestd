@@ -25,34 +25,38 @@ fn process_request(req: Request, db: NodeDb) {
 	{
 		Ok(c) => c,
 		Err(e) => {
-			error!("hook script not found: {:#?}", hook.exec);
+			error!("starting hook script failed: {}", e);
 			req.respond(Response::new_empty(StatusCode::from(404))).unwrap();
 			return;
 		}
 	};
 
 	let allnodes = db.get_all_nodes();
-	let writer = BufWriter::new(cmd.stdin.unwrap());
+	let std_writer = BufWriter::new(cmd.stdin.take().unwrap());
+	let mut std_reader = BufReader::new(cmd.stdout.take().unwrap());
+
 	// i don't like this solution but i haven't found a better one
 	std::thread::spawn(move || {
 		#[allow(unused_must_use)]
-		match json::to_writer(writer, &allnodes) {
+		match json::to_writer(std_writer, &allnodes) {
 			Err(e) => warn!("hook don't want my input :("),
 			Ok(r) => (),
 		}
 	});
 
-	// let reader = BufReader::new(stdout);
+	// read the output from stdout to out
 	let mut out: Vec<u8> = Vec::new();
-	let len = cmd.stdout.unwrap().read_to_end(&mut out).unwrap();
+	std_reader.read_to_end(&mut out).unwrap();
 	info!("response payload is {} bytes", out.len());
 
+	// create a response
 	let response = Response::new(StatusCode::from(200), vec![], out.as_slice(), None, None);
-
 	if let Err(e) = req.respond(response) {
 		warn!("could not respond to web requestd: {}", e);
 	}
-	// cmd.wait().unwrap();
+
+	// wait for the process to exit
+	cmd.wait().unwrap();
 }
 
 pub fn start_webendpoint(nodedb: NodeDb) {

@@ -115,7 +115,7 @@ for node in data:
 				links.append({
 					'source': myIndex,
 					'target': neighbour_idx,
-					'tq': 1 if vals['tq'] == 0 else 255 / vals['tq'],
+					'tq': 0 if vals['tq'] == 0 else 255 / vals['tq'],
 					'type': graph_nodes[myIndex]['ifaces'][iface]
 				})
 

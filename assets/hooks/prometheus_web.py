@@ -51,7 +51,7 @@ rootfs = Gauge('knoten_rootfs', 'rootfs', default_labels, namespace='gluon', reg
 time = Gauge('knoten_time', 'time', default_labels, namespace='gluon', registry=registry)
 wireless = Gauge('knoten_wireless', 'wireless', default_labels+['type'], namespace='gluon', registry=registry)
 process = Gauge('knoten_process', 'process', default_labels+['type'], namespace='gluon', registry=registry)
-meshvpn = Gauge('knoten_meshvpn', 'meshvpn', default_labels+['peer', 'group'], namespace='gluon', registry=registry)
+meshvpn_contime = Gauge('knoten_meshvpn', 'conected fastd instance', default_labels+['group', 'peer'], namespace='gluon', registry=registry)
 cpu = Gauge('knoten_cpu', 'cpu', default_labels+['mode'], namespace='gluon', registry=registry)
 
 memory_usage = Gauge('knoten_memory_usage', 'memory usage', default_labels, namespace='gluon', registry=registry)
@@ -65,7 +65,7 @@ nodes_total  = Gauge('knoten_total', 'total online nodes', namespace='gluon', re
 nodes_online = Gauge('total_online', 'total online nodes', namespace='gluon', registry=registry)
 clients_total = Gauge('clients_total', 'clients total', namespace='gluon', registry=registry)
 traffic_total = Gauge('traffic_total', 'traffic total', ['type'], namespace='gluon', registry=registry)
-
+meshvpn = Gauge('meshvpn_count', 'meshvpn', ['peer', 'group'], namespace='gluon', registry=registry)
 
 
 
@@ -116,7 +116,8 @@ for node in data:
 		for group,peers in d['statistics'].get('mesh_vpn', {}).get('groups', {}).items():
 			for p,v in peers.get('peers',{}).items():
 				if v is not None:
-					meshvpn.labels(**deflbl, group=group, peer=p).set(v['established']) # per node
+					meshvpn_contime.labels(**deflbl, group=group, peer=p).set(v['established']) # per node
+					meshvpn.labels(group=group, peer=p).inc() # per node
 
 
 		# cpu stats
