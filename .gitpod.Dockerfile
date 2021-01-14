@@ -1,8 +1,8 @@
 FROM debian:sid
 
 USER root
-RUN sudo apt-get update -q && \
-    sudo apt-get install -yq redis-server
+RUN apt-get update -q && \
+    apt-get install -yq redis-server
 
 # Install custom tools, runtime, etc. using apt-get
 # For example, the command below would install "bastet" - a command line tetris clone:
