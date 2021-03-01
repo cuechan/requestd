@@ -1,0 +1,15 @@
+{% include "head" %}
+
+<body>
+	{% include "navbar" %}
+	<div class="container">
+
+	<h1>{{ node.last_response.nodeinfo.hostname }}</h1>
+	node is {{ node.status }} <br>
+	last response {{ last_response_secs }} ago <br>
+
+	<textarea readonly style="width: 90%; height: 1200px; font-family: monospace;">
+{{ last_response }}
+	</textarea>
+	</div>
+</body>
