@@ -23,9 +23,12 @@ use std::process::{self, Command};
 use std::thread;
 use std::time::Duration;
 
+
+#[derive(Clone)]
 pub struct Collector {
 	nodedb: nodedb::NodeDb,
 	er: EventRunner,
+	received_counter: usize,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -58,7 +61,11 @@ impl Collector {
 	pub fn new(nodedb: NodeDb) -> Self {
 		let er = EventRunner::new();
 
-		Self { nodedb, er }
+		Self {
+			nodedb,
+			er,
+			received_counter: 0,
+		}
 	}
 
 	pub fn start_collector(&self, requester: RequesterService) {
@@ -139,6 +146,11 @@ impl Collector {
 
 		self.nodedb.insert_node(&nodedata).unwrap();
 		self.er.push_event(Event::NodeUpdate, node);
+		self.received_counter += 1;
+	}
+
+	pub fn get_num_received(&self) -> usize {
+		self.received_counter
 	}
 }
 

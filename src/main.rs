@@ -1,3 +1,5 @@
+#![feature(proc_macro_hygiene, decl_macro)]
+
 pub mod collector;
 pub mod config;
 pub mod controlsocket;
@@ -6,6 +8,8 @@ pub mod monitor;
 pub mod multicast;
 pub mod output;
 pub mod web_endpints;
+pub mod web;
+
 use chrono::{DateTime, Utc};
 use clap;
 use collector::nodedb;
@@ -29,6 +33,12 @@ use std::process;
 use std::process::exit;
 use std::thread;
 use std::time::Duration;
+use rocket::{self, get, routes};
+use rocket_contrib::templates::Template;
+use std::collections::HashMap;
+use std::time;
+use serde_json::json;
+
 
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
@@ -50,6 +60,7 @@ lazy_static! {
 	};
 }
 
+
 fn main() {
 	pretty_env_logger::init();
 
@@ -62,14 +73,18 @@ fn main() {
 		("collect", _m) => {
 			cmd_collect();
 		}
-		("foo", _m) => {
-			error!("nothing to test right now");
+		("foo", m) => {
+			web_test(m.unwrap())
 		}
 		_ => {
 			error!("not a valid Command. Try --help");
 			process::exit(1);
 		}
 	}
+}
+
+fn web_test(args: &clap::ArgMatches) {
+	let db = NodeDb::new(&CONFIG.database.dbfile);
 }
 
 // TODO: this needs a bit more/clearer structure
@@ -86,13 +101,20 @@ fn cmd_collect() {
 		controlsocket::start(db_c, &CONFIG.controlsocket);
 	});
 
+
 	let db_c = db.clone();
 	std::thread::spawn(move || {
 		web_endpints::start_webendpoint(db_c);
 	});
 
-	let mut cllctr = Collector::new(db);
+	let mut cllctr = Collector::new(db.clone());
 	cllctr.start_collector(requester.clone());
+
+	let db_c = db.clone();
+	let cllctr_c = cllctr.clone();
+	std::thread::spawn(move || {
+		web::main(db_c, cllctr_c);
+	});
 
 	thread::spawn(move || loop {
 		debug!("requesting new data");
