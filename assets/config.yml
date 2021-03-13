@@ -37,11 +37,11 @@ events:
     - exec: /usr/local/lib/requestd/node_offline.py
 
 web_endpoints:
-  - path: /metrics
+  - path: metrics
     exec: /usr/local/lib/requestd/prometheus_web.py
-  - path: /graph.json
+  - path: graph.json
     exec: /usr/local/lib/requestd/hopglass_graph.py
-  - path: /nodes.json
+  - path: nodes.json
     exec: /usr/local/lib/requestd/hopglass_nodes.py
 # [0] https://stedolan.github.io/jq/
 
