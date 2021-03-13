@@ -1,31 +1,37 @@
+mod endpoints;
+
+use crate::collector::{Collector, Event};
 use crate::nodedb::{self, NodeDb, NodeStatus};
+use crate::CONFIG;
 use actix_web::{
 	dev::Server, http::StatusCode, middleware, rt, web, App, HttpRequest, HttpResponse, HttpServer, Result as WebResult,
 };
 use chrono::{DateTime, Utc};
 use handlebars::{self, Handlebars};
+use log::error;
 use rocket;
+use rocket::config::{Config, Environment};
+use rocket::http::Status;
 use rocket::response::content;
 use rocket::response::content::Html;
 use rocket::State;
 use rocket::{get, post, routes};
 use serde_json as json;
 use serde_json::json;
+use std::net::SocketAddr;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
 use tera;
-use std::path::Path;
-use log::{error};
-use crate::collector::{Collector, Event};
 
 const TEMPLATES: &[(&str, &str)] = &[
-	("index",    include_str!("../../templates/index.html")),
+	("index", include_str!("../../templates/index.html")),
 	("nodelist", include_str!("../../templates/nodelist.html",)),
-	("head",     include_str!("../../templates/head.html",)),
-	("node",     include_str!("../../templates/node.html",)),
-	("navbar",   include_str!("../../templates/navbar.html",)),
+	("head", include_str!("../../templates/head.html",)),
+	("node", include_str!("../../templates/node.html",)),
+	("navbar", include_str!("../../templates/navbar.html",)),
 ];
 
 struct InternalState {
@@ -40,10 +46,7 @@ type AppState = Mutex<InternalState>;
 fn list_nodes(state: State<'_, AppState>) -> Html<String> {
 	let mut state_ = state.lock().unwrap();
 	// let nodes: Vec<String> = state_.db.get_all_nodes().iter().map(|n| format!("{:#?}", n)).collect();
-	let nodes = state_
-		.db
-		.get_all_nodes()
-		.clone();
+	let nodes = state_.db.get_all_nodes().clone();
 
 	let nodes_: Vec<json::Value> = nodes
 		.iter()
@@ -60,9 +63,7 @@ fn list_nodes(state: State<'_, AppState>) -> Html<String> {
 		.collect();
 
 	// println!("{:#?}", nodes);
-
 	let data = json!({ "nodes": nodes_ });
-
 	let html = state_
 		.hbs
 		.render("nodelist", &tera::Context::from_serialize(&data).unwrap())
@@ -93,11 +94,33 @@ fn node_details(state: State<'_, AppState>, nodeid: String) -> Html<String> {
 	Html(html)
 }
 
+#[get("/hook/<hook>")]
+fn hooks_endpoint(state: State<'_, AppState>, hook: String) -> Result<Vec<u8>, Status> {
+	let mut state_ = state.lock().unwrap();
+	let nodes = state_.db.get_all_nodes().clone();
+	// drop state_ early so we dont block other
+	// request with long running hooks
+	drop(state_);
+
+	match endpoints::process_request(hook, json::to_value(&nodes).unwrap()) {
+		Ok(r) => Ok(r),
+		Err(e) => {
+			// todo: include errors in response
+			error!("runnig hook failed: {:#?}", e);
+			Err(Status::InternalServerError)
+		}
+	}
+}
+
 #[get("/")]
 fn index(state: State<'_, AppState>) -> Html<String> {
 	let mut state_ = state.lock().unwrap();
-	let nodes_online = state_.db.get_all_nodes().iter().filter(|n| n.status == NodeStatus::Up).count();
-
+	let nodes_online = state_
+		.db
+		.get_all_nodes()
+		.iter()
+		.filter(|n| n.status == NodeStatus::Up)
+		.count();
 
 	let data = json!({
 		"nodes_online": nodes_online,
@@ -141,20 +164,13 @@ pub fn main(db: nodedb::NodeDb, collector: Collector) {
 		collector: collector,
 	};
 
-	rocket::ignite()
-		.mount("/", routes![list_nodes, node_details, index])
+	let config = rocket_config();
+
+	rocket::custom(config)
+		.mount("/", routes![list_nodes, node_details, index, hooks_endpoint])
 		.manage(Mutex::new(appstate))
 		.launch();
 }
-
-// fn load_templates() -> Handlebars<'static> {
-// 	let mut hb = Handlebars::new();
-// 	hb.register_template_string("index", include_str!("../../templates/index.hbs"))
-// 		.unwrap();
-// 	hb.register_template_string("nodelist", include_str!("../../templates/nodelist.hbs"))
-// 		.unwrap();
-// 	hb
-// }
 
 fn load_templates_tera() -> tera::Tera {
 	let mut t = tera::Tera::default();
@@ -170,17 +186,20 @@ fn load_templates_tera() -> tera::Tera {
 		}
 	}
 
-
-	// t.add_raw_template("index", include_str!("../../templates/index.html"))
-	// 	.unwrap();
-	// t.add_raw_template("nodelist", include_str!("../../templates/nodelist.html"))
-	// 	.unwrap();
-	// t.add_raw_template("head", include_str!("../../templates/head.html"))
-	// 	.unwrap();
-	// t.add_raw_template("node", include_str!("../../templates/node.html"))
-	// 	.unwrap();
-	// t.add_raw_template("navbar", include_str!("../../templates/navbar.html"))
-	// 	.unwrap();
-
 	t
+}
+
+#[cfg(debug_assertions)]
+fn rocket_config() -> Config {
+	Config::build(Environment::Development).finalize().unwrap()
+}
+
+#[cfg(not(debug_assertions))]
+fn rocket_config() -> Config {
+	let listen: SocketAddr = CONFIG.web_listen.parse().unwrap();
+	Config::build(Environment::Production)
+		.address(listen.ip().to_string())
+		.port(listen.port())
+		.finalize()
+		.unwrap()
 }
