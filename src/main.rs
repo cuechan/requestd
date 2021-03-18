@@ -101,8 +101,8 @@ fn cmd_collect() {
 	});
 
 
-	let mut cllctr = Collector::new(db.clone());
-	cllctr.start_collector(requester.clone());
+	let mut cllctr = Collector::new(db.clone(), requester.clone());
+	cllctr.start_collector();
 
 	let db_c = db.clone();
 	let cllctr_c = cllctr.clone();

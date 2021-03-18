@@ -18,6 +18,7 @@ use rocket::State;
 use rocket::{get, post, routes};
 use serde_json as json;
 use serde_json::json;
+use std;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::rc::Rc;
@@ -113,8 +114,8 @@ fn hooks_endpoint(state: State<'_, AppState>, hook: String) -> Result<Vec<u8>, S
 }
 
 #[get("/")]
-fn index(state: State<'_, AppState>) -> Html<String> {
-	let mut state_ = state.lock().unwrap();
+fn index(state: State<'_, AppState>) -> Result<Html<String>, tera::Error> {
+	let state_ = state.lock().unwrap();
 	let nodes_online = state_
 		.db
 		.get_all_nodes()
@@ -122,17 +123,27 @@ fn index(state: State<'_, AppState>) -> Html<String> {
 		.filter(|n| n.status == NodeStatus::Up)
 		.count();
 
+	let nodes_offline = state_
+		.db
+		.get_all_nodes()
+		.iter()
+		.filter(|n| n.status == NodeStatus::Down)
+		.count();
+
+	let mut events = state_.collector.get_event_history().clone();
+	events.reverse();
+
 	let data = json!({
 		"nodes_online": nodes_online,
 		"responses_received": state_.collector.get_num_received(),
+		"nodes_offline": nodes_offline,
+		"recent_events": events,
 	});
 
-	let html = state_
-		.hbs
-		.render("index", &tera::Context::from_serialize(&data).unwrap())
-		.unwrap();
+	let html = state_.hbs
+		.render("index", &tera::Context::from_serialize(&data).unwrap())?;
 
-	Html(html)
+	Ok(Html(html))
 }
 
 // fn run_app(state: AppState) -> std::io::Result<()> {
@@ -182,7 +193,8 @@ fn load_templates_tera() -> tera::Tera {
 				tera::ErrorKind::Msg(m) => error!("{}", m),
 				_ => error!("unknown error"),
 			}
-			panic!("loading templates failed: {:#?}", e);
+			error!("loading templates failed: {:#?}", e);
+			std::process::exit(1);
 		}
 	}
 

@@ -3,7 +3,7 @@
 	{% include "navbar" %}
 	<div class="container">
 
-		<h1 id="content" class="bd-title">Nodelist</h1>
+		<h1 class="bd-title">Nodelist</h1>
 		<table class="table table-striped">
 			<thead>
 				<tr>
@@ -15,16 +15,16 @@
 			</thead>
 			{% for node in nodes %}
 			<tr>
-				<th><a href="/node/{{ node.nodeid }}">{{ node.last_response.nodeinfo.hostname }}</a></th>
-				<th>
+				<td><a href="/node/{{ node.nodeid }}">{{ node.last_response.nodeinfo.hostname }}</a></td>
+				<td>
 					{% if node.status == "Up" %}
 					<span class="badge bg-success">Up</span>
 					{% else %}
 					<span class="badge bg-danger">Down</span>
 					{% endif %}
-				</th>
-				<th>{{ node.last_seen_secs }}s ago</th>
-				<th><a href="http://[{{ node.last_address }}]">{{ node.last_address }}</a></th>
+				</td>
+				<td>{{ node.last_seen_secs }}s ago</td>
+				<td><a href="http://[{{ node.last_address }}]">{{ node.last_address }}</a></td>
 			</tr>
 			{% endfor %}
 		</table>

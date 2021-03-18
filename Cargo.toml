@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 chrono = {version = "0.4", features = ["serde"]}
 clap = "2.33"
-crossbeam-channel = "0.4"
+crossbeam = "0.8"
 curl = "0.4"
 flate2 = "1.0"
 jq-rs = {version = "0.4", features = ["bundled"]}

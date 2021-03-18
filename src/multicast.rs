@@ -1,7 +1,7 @@
 use crate::metrics;
 use crate::Timestamp;
 use chrono::Utc;
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{self, Receiver, Sender};
 use flate2::read::DeflateDecoder;
 use libc;
 #[allow(unused_imports)]
@@ -37,7 +37,7 @@ impl RequesterService {
 	pub fn new(iface: &str) -> Self {
 		let iface_n = if_to_index(&iface).expect(&format!("no such interface: {}", iface));
 
-		let (tx, rx) = unbounded::<ResponddResponse>();
+		let (tx, rx) = channel::unbounded::<ResponddResponse>();
 		let socket = Arc::new(Mutex::new({
 			let s: Socket = Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp())).unwrap();
 			s.set_nonblocking(true).unwrap();
@@ -71,7 +71,7 @@ impl RequesterService {
 
 		if let Err(e) = socket.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(dest)) {
 			error!("can't send multicast data to {}: {}", dest, e);
-			info!("is there a route configured? see https://github.com/nodejs/help/issues/2073#issuecomment-533834373");
+			info!("is there a route configured? see README.md");
 		}
 	}
 
@@ -81,8 +81,9 @@ impl RequesterService {
 	}
 
 	/// get a channel where you can send request
-	pub fn get_requester(&self) -> Receiver<ResponddResponse> {
-		self.rx.clone()
+	pub fn get_requester(&self) -> Sender<()> {
+		// self.rx.clone()
+		unimplemented!();
 	}
 
 	pub fn stop(self) {
