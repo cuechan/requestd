@@ -7,6 +7,8 @@
 Building
 ========
 
+`sudo apt install libzmq3-dev libsqlite3-dev`
+
 You need rust nightly: (assuming you have rust installed via [rustup](https://rustup.rs/))
 ```
 rustup default nightly
