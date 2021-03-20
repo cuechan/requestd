@@ -4,6 +4,14 @@
 
 [latest .deb](https://cuechan.gitlab.io/requestd/requestd.deb)
 
+Building
+========
+
+You need rust nightly: (assuming you have rust installed via [rustup](https://rustup.rs/))
+```
+rustup default nightly
+```
+
 
 Help!
 =====
