@@ -77,7 +77,13 @@ fn list_nodes(state: State<'_, AppState>) -> Html<String> {
 fn node_details(state: State<'_, AppState>, nodeid: String) -> Html<String> {
 	let mut state_ = state.lock().unwrap();
 	// let nodes: Vec<String> = state_.db.get_all_nodes().iter().map(|n| format!("{:#?}", n)).collect();
-	let node = state_.db.get_node(&nodeid).unwrap();
+	let node = match state_.db.get_node(&nodeid) {
+		Some(node) => node,
+		None => {
+			error!("node {} not found", nodeid);
+			return Html(String::from("Node not found"));
+		},
+	};
 
 	let data = json!({
 		"node": node,
