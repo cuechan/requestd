@@ -15,7 +15,7 @@
 			</thead>
 			{% for node in nodes %}
 			<tr>
-				<td><a href="/node/{{ node.nodeid }}">{{ node.last_response.nodeinfo.hostname }}</a></td>
+				<td><a href="/nodes/{{ node.nodeid }}">{{ node.last_response.nodeinfo.hostname }}</a></td>
 				<td>
 					{% if node.status == "Up" %}
 					<span class="badge bg-success">Up</span>

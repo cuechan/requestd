@@ -73,7 +73,7 @@ fn list_nodes(state: State<'_, AppState>) -> Html<String> {
 	Html(html)
 }
 
-#[get("/node/<nodeid>")]
+#[get("/nodes/<nodeid>")]
 fn node_details(state: State<'_, AppState>, nodeid: String) -> Html<String> {
 	let mut state_ = state.lock().unwrap();
 	// let nodes: Vec<String> = state_.db.get_all_nodes().iter().map(|n| format!("{:#?}", n)).collect();
@@ -95,7 +95,7 @@ fn node_details(state: State<'_, AppState>, nodeid: String) -> Html<String> {
 	Html(html)
 }
 
-#[get("/hook/<hook>")]
+#[get("/hooks/<hook>")]
 fn hooks_endpoint(state: State<'_, AppState>, hook: String) -> Result<Vec<u8>, Status> {
 	let mut state_ = state.lock().unwrap();
 	let nodes = state_.db.get_all_nodes().clone();
