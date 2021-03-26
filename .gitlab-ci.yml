@@ -5,9 +5,7 @@ variables:
 
 cache:
   paths:
-    - target/debug
-    - target/release
-    - target/doc
+    - target
 
 stages:
   - build
