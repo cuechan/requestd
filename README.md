@@ -22,15 +22,36 @@ Run
 Help!
 =====
 
-"is there a route configured"
------------------------------
+## "is there a route configured?"
 
 Sometimes it is necessary to explicitely set a route for the multicast
-address.
+address. There a two ways to set up a route:
 
+### 1. use `ip r` for temprary setups
 1. get the source ip address for the interface you want to use (`ip a`)
 2. add a route for the multicast address:
   `sudo ip route add ff05::2:1001/128 dev <interface> src <source address> table local`
+
+### 2. use systemd-networkd
+If your Host use systemd-network for the network configuration you can simply
+add this to the `.network` file for the interface connected to the freifunk network:
+
+```
+[Match]
+# use your iface name here
+Name=ffhl
+
+[Network]
+# some network config here
+# https://www.freedesktop.org/software/systemd/man/systemd.network.html#%5BNetwork%5D%20Section%20Options
+
+# finally an explicit route entry:
+[Route]
+Destination=ff05::2:1001/128
+Type=multicast
+Table=local
+```
+
 
 "I am behind a freifunk node that has ebtable filters"
 ------------------------------------------------------
