@@ -1,4 +1,4 @@
-image: rustlang/rust:nightly
+image: rustlang/rust:nightly-buster
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
@@ -42,9 +42,17 @@ build:deb:
     paths:
       - target/debian
 
+test:deb:
+  stage: test
+  script:
+    - dpkg -i target/debian/*.deb
+    - requestd --help >> /dev/null
+
+
 build:doc:
   stage: build
   script:
+    - cargo update
     - cargo doc
   artifacts:
     paths:
