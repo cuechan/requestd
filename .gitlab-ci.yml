@@ -46,6 +46,7 @@ test:deb:
   stage: test
   script:
     - dpkg -i target/debian/*.deb
+    - "[ -e /etc/requestd.yml ]"
     - requestd --help >> /dev/null
 
 
