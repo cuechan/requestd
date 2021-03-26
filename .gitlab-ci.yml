@@ -21,9 +21,6 @@ build:build:
   script:
     - cargo update
     - cargo build
-  artifacts:
-    paths:
-      - target
 
 test:test:
   stage: test
