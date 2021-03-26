@@ -11,6 +11,10 @@ use std::process;
 // use std::fs::File;
 use std::path;
 
+
+const EVENTS_HISTORY_SIZE: isize = 60*60*24*7;
+
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -82,10 +86,16 @@ impl Default for Config {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DbConfig {
+	/// location of the database file
 	pub dbfile: String,
+	/// number of seconds without a response after a node is considered offline
 	pub offline_after: u64,
+	/// remove nodes form database after x seconds
 	pub remove_after: u64,
+	/// check database for offline nodes every x seconds
 	pub evaluate_every: u64,
+	/// save events occured in last x seconds
+	pub event_history_size: isize
 }
 
 impl Default for DbConfig {
@@ -95,6 +105,7 @@ impl Default for DbConfig {
 			offline_after: 300,
 			remove_after: 2592000,
 			evaluate_every: 15,
+			event_history_size: EVENTS_HISTORY_SIZE,
 		}
 	}
 }

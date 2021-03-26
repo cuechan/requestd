@@ -16,6 +16,7 @@ use log::{debug, error, info, trace, warn};
 use nodedb::Node;
 use nodedb::NodeDb;
 use nodedb::NodeStatus;
+use std::str;
 use serde_json as json;
 use serde_json::Value;
 use std::fmt::{self, Display};
@@ -27,9 +28,7 @@ use std::sync::atomic::*;
 use std::sync::{Arc, Mutex};
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
-
-const EVENTS_HISTORY_SIZE: usize = 4096;
-
+use crate::NodeId;
 
 #[derive(Clone)]
 pub struct Collector {
@@ -38,7 +37,6 @@ pub struct Collector {
 	er: EventRunner,
 	received_counter: Arc<Mutex<usize>>,
 	requester: RequesterService,
-	event_history: Arc<Mutex<Vec<Event>>>,
 }
 
 
@@ -61,6 +59,16 @@ impl EventEvent {
 			Self::NodeOnlineAfterOffline => CONFIG.events.online_after_offline.clone(),
 			_ => unimplemented!(),
 		}
+	}
+}
+
+impl rusqlite::types::FromSql for EventEvent {
+	fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+		if let rusqlite::types::ValueRef::Text(e) = value {
+			return Ok(str::from_utf8(e).unwrap().parse().unwrap())
+		}
+
+		Ok(EventEvent::NewNode)
 	}
 }
 
@@ -90,16 +98,16 @@ impl Display for EventEvent {
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub struct Event {
 	event: EventEvent,
-	node: Node,
+	nodeid: NodeId,
 	trigger: String,
 	timestamp: DateTime<Utc>,
 }
 
 impl Event {
-	fn new(eevent: EventEvent, node: Node) -> Self {
+	fn new(eevent: EventEvent, node: &NodeId) -> Self {
 		Self {
 			event: eevent,
-			node: node,
+			nodeid: node.clone(),
 			trigger: String::new(),
 			timestamp: Utc::now(),
 		}
@@ -108,7 +116,7 @@ impl Event {
 
 impl Display for Event {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}({})", self.event, self.node.nodeid)
+		write!(f, "{}({})", self.event, self.nodeid)
 	}
 }
 
@@ -123,7 +131,6 @@ impl Collector {
 			requester,
 			er,
 			received_counter: Arc::new(Mutex::new(0)),
-			event_history: Arc::new(Mutex::new(Vec::with_capacity(EVENTS_HISTORY_SIZE))),
 		}
 	}
 
@@ -146,19 +153,15 @@ impl Collector {
 		});
 	}
 
-	fn emit_event(&mut self, event: Event) {
-		let mut events = self.event_history.lock().unwrap();
-		while events.len() >= EVENTS_HISTORY_SIZE {
-			events.remove(0);
-		}
-		events.push(event.clone());
+	fn emit_event<T: Serialize>(&mut self, event: Event, payload: &T) {
+		self.nodedb.insert_event(&event);
+		self.er.push_event((event.clone(), json::to_value(payload).unwrap()));
 
-		self.er.push_event(event.clone());
 		self.events_channel.0.send(event);
 	}
 
 	pub fn get_event_history(&self) -> Vec<Event> {
-		self.event_history.lock().unwrap().clone()
+		self.nodedb.get_all_events().clone()
 	}
 
 	/// searches the database for offline nodes and trigger events
@@ -178,10 +181,10 @@ impl Collector {
 				db_copy.delete_node(&n.nodeid);
 				// then trigger the event
 
-				self.emit_event(Event::new(
-					EventEvent::RemoveNode,
-					n.clone()
-				));
+				self.emit_event(
+					Event::new(EventEvent::RemoveNode, &n.nodeid),
+					&n
+				);
 
 				continue;
 			}
@@ -195,10 +198,10 @@ impl Collector {
 				// first, mark node as offline
 				db_copy.set_status(&n.nodeid, NodeStatus::Down);
 				// then trigger the event
-				self.emit_event(Event::new(
-					EventEvent::NodeOffline,
-					n.clone()
-				));
+				self.emit_event(
+					Event::new(EventEvent::NodeOffline, &n.nodeid),
+					&n
+				);
 
 				continue;
 			}
@@ -226,27 +229,25 @@ impl Collector {
 			self.nodedb.insert_node(&nodedata).unwrap();
 			let node = self.nodedb.get_node(&nodedata.nodeid).unwrap();
 
-			let e = Event::new(
-				EventEvent::NewNode,
-				node.clone()
+			self.emit_event(
+				Event::new(EventEvent::NewNode, &node.nodeid),
+				&node
 			);
 
-			self.emit_event(e);
 			node
 		} else {
 			self.nodedb.get_node(&nodedata.nodeid).unwrap()
 		};
 
 		if node.is_offline() {
-			let e = Event::new(
-				EventEvent::NodeOnlineAfterOffline,
-				node.clone()
+			self.emit_event(
+				Event::new(EventEvent::NodeOnlineAfterOffline, &node.nodeid),
+				&node
 			);
-			self.emit_event(e);
 		}
 
 		self.nodedb.insert_node(&nodedata).unwrap();
-		self.emit_event(Event::new(EventEvent::NodeUpdate, node));
+		self.emit_event(Event::new(EventEvent::NodeUpdate, &node.nodeid), &node);
 	}
 
 	pub fn get_num_received(&self) -> usize {
@@ -256,7 +257,7 @@ impl Collector {
 
 #[derive(Clone)]
 pub struct EventRunner {
-	threads: Sender<(config::Event, Node)>,
+	threads: Sender<(config::Event, json::Value)>,
 }
 
 impl EventRunner {
@@ -275,11 +276,11 @@ impl EventRunner {
 		Self { threads: sender }
 	}
 
-	pub fn push_event(&mut self, e: Event) {
-		trace!("Event Triggered: {} for {}", e, e.node.nodeid);
+	pub fn push_event(&mut self, e: (Event, json::Value)) {
+		trace!("Event Triggered: {} for {}", e.0, e.0.nodeid);
 
-		for hook in e.event.get_configured_hooks() {
-			self.threads.send((hook.clone(), e.node.clone())).unwrap();
+		for hook in e.0.event.get_configured_hooks() {
+			self.threads.send((hook.clone(), e.1.clone())).unwrap();
 		}
 
 		HOOKS_WAITING.set(self.threads.len() as i64);
@@ -288,20 +289,20 @@ impl EventRunner {
 	}
 }
 
-fn hook_worker(receiver: Receiver<(config::Event, Node)>) {
-	for (event, n) in receiver {
+fn hook_worker(receiver: Receiver<(config::Event, json::Value)>) {
+	for (event, data) in receiver {
 		#[allow(unused_must_use)]
-		event_trigger(event.clone(), n).map_err(|e| {
+		event_trigger(event.clone(), &data).map_err(|e| {
 			error!("running hook '{}' failed: {}", event.exec, e);
 		});
 	}
 }
 
-pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
+pub fn event_trigger(event: config::Event, data: &json::Value) -> Result<(), EventError> {
 	let vars = event.vars.iter().map(|(var, q)| {
 		let val = jq::compile(q)
 			.unwrap()
-			.run(&json::to_string(&n.last_response).unwrap())
+			.run(&json::to_string(&data).unwrap())
 			.unwrap();
 
 		// workaround because jq_rs does not support the -r flag
@@ -325,7 +326,7 @@ pub fn event_trigger(event: config::Event, n: Node) -> Result<(), EventError> {
 	let stdin = cmd.stdin.as_mut().expect("can't get stdin");
 
 	#[allow(unused_must_use)]
-	json::to_writer(stdin, &n.last_response);
+	json::to_writer(stdin, &data);
 
 	cmd.wait()?;
 

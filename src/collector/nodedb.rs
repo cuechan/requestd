@@ -141,14 +141,14 @@ impl NodeDb {
 			.unwrap();
 	}
 
-	pub fn insert_event(&mut self, e: Event) -> Option<()> {
+	pub fn insert_event(&mut self, e: &Event) -> Option<()> {
 		self.db
 			.lock()
 			.expect("can't get database lock")
 			.execute(
 				"INSERT INTO events (nodeid, timestamp, event)
 				VALUES (?1, ?2, ?3)",
-				params![e.node.nodeid, e.timestamp, json::to_value(&e).unwrap()],
+				params![e.nodeid, e.timestamp, &e.event.to_string()],
 			)
 			.map_err(|e| {
 				error!("sql error: {}", e);
@@ -158,12 +158,31 @@ impl NodeDb {
 		Some(())
 	}
 
+	fn clean_events_history(&self, time: DateTime<Utc>) -> usize {
+		self.db
+			.lock()
+			.expect("can't get database lock")
+			.execute(
+				"DELETE FROM events WHERE timestamp < $1",
+				params![time],
+			)
+			.map_err(|e| {
+				error!("sql error: {}", e);
+			})
+			.unwrap()
+	}
+
 	pub fn get_all_events(&self) -> Vec<Event> {
 		let db = self.db.lock().unwrap();
 		let mut stmt = db.prepare("SELECT * FROM events ORDER BY timestamp").unwrap();
 
 		stmt.query_map(NO_PARAMS, |row| {
-			Ok(json::from_value(row.get("event").unwrap()).unwrap())
+			Ok(Event {
+				event: row.get("event").unwrap(),
+				timestamp: row.get("timestamp").unwrap(),
+				nodeid: row.get("nodeid").unwrap(),
+				trigger: String::new(),
+			})
 		})
 			.unwrap()
 			.map(|n| n.unwrap())
@@ -179,6 +198,12 @@ pub struct Node {
 	pub last_address: String,
 	pub last_response: Value,
 	pub status: NodeStatus,
+}
+
+impl Display for Node {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.nodeid)
+	}
 }
 
 impl Into<NodeId> for Node {
@@ -325,7 +350,7 @@ fn event_without_node() {
 		status: NodeStatus::Up,
 	};
 
-	db.insert_event(Event::new(EventEvent::NewNode, n));
+	db.insert_event(&Event::new(EventEvent::NewNode, &n.nodeid));
 }
 
 #[test]
@@ -350,8 +375,8 @@ fn event_create_and_read() {
 		status: NodeStatus::Up,
 	};
 
-	let e = Event::new(EventEvent::NewNode, n);
-	db.insert_event(e.clone());
+	let e = Event::new(EventEvent::NewNode, &n.nodeid);
+	db.insert_event(&e);
 
 	let events = db.get_all_events();
 	assert_eq!(events.len(), 1);

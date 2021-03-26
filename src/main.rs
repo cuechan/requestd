@@ -7,6 +7,8 @@ pub mod model;
 pub mod monitor;
 pub mod multicast;
 pub mod output;
+mod statistics;
+mod respondd;
 pub mod web;
 
 use chrono::{DateTime, Utc};
@@ -46,6 +48,7 @@ pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/requestd.yml", "./config.yml"];
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
 pub type NodeId = String;
+pub type Mac = String;
 
 lazy_static! {
 	pub static ref ARGS: clap::ArgMatches<'static> = clap_app().get_matches();

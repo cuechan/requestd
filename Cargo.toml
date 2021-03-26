@@ -37,6 +37,7 @@ rocket_contrib = {version = "0.4", features = ["handlebars_templates"]}
 actix-web = "3.3"
 handlebars = "3.5"
 tera = "1.6.1"
+petgraph = "0.5.1"
 
 [profile.release]
 panic="abort"

@@ -51,6 +51,7 @@
 					<th scope="col">Timestamp</th>
 				</tr>
 			</thead>
+
 			{% for event in recent_events %}
 			<tr>
 				<td>
@@ -67,11 +68,13 @@
 					{% endif %}
 				</td>
 				<td>
-					<a href="/nodes/{{ event.node.nodeid }}">{{ event.node.last_response.nodeinfo.hostname }}</a>
+					<!-- <a href="/nodes/{{ event.nodeid }}">{ event.node.last_response.nodeinfo.hostname }</a> -->
+					<a href="/nodes/{{ event.nodeid }}">{{ event.nodeid }} </a>
 				</td>
 				<td>{{ event.timestamp }}</td>
 			</tr>
 			{% endfor %}
+
 		</table>
 	</div>
 	<script>

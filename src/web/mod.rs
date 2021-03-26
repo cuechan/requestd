@@ -26,6 +26,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
 use tera;
+use crate::statistics;
 
 const TEMPLATES: &[(&str, &str)] = &[
 	("index", include_str!("../../templates/index.html")),
@@ -85,10 +86,16 @@ fn node_details(state: State<'_, AppState>, nodeid: String) -> Html<String> {
 		},
 	};
 
+	let all_nodes = state_.db.get_all_nodes_with_status(NodeStatus::Up);
+
+	let graph = statistics::generate_gatewaypath_graph(all_nodes.clone());
+	let dot = petgraph::dot::Dot::new(&graph).to_string();
+
 	let data = json!({
 		"node": node,
 		"nodeid": node.nodeid,
-		"last_response": serde_json::to_string_pretty(&node.last_response).unwrap(),
+		// "last_response": serde_json::to_string_pretty(&node.last_response).unwrap(),
+		"last_response": dot,
 		"last_response_secs": Utc::now().signed_duration_since(node.last_seen).num_seconds(),
 		"status": node.status,
 	});
@@ -97,6 +104,8 @@ fn node_details(state: State<'_, AppState>, nodeid: String) -> Html<String> {
 		.hbs
 		.render("node", &tera::Context::from_serialize(&data).unwrap())
 		.unwrap();
+
+	drop(state_);
 
 	Html(html)
 }
