@@ -12,11 +12,11 @@ stages:
   - test
   - deploy
 
-before_script:
-  - apt update && apt install -y libzmq3-dev:amd64
 
 build:build:
   stage: build
+  before_script:
+    - apt update && apt install -y libzmq3-dev:amd64
   script:
     - cargo update
     - cargo build
@@ -25,19 +25,24 @@ build:build:
       - target
 
 test:test:
-  stage: build
+  stage: test
+  before_script:
+    - apt update && apt install -y libzmq3-dev:amd64
   script:
     - cargo test
 
 build:deb:
   stage: build
-  script:
+  before_script:
+    - apt update && apt install -y libzmq3-dev:amd64
     - cargo install cargo-deb
+  script:
+    - cargo deb
   artifacts:
     paths:
       - target/debian
 
-deploy:doc:
+build:doc:
   stage: build
   script:
     - cargo doc
@@ -49,12 +54,13 @@ pages:
   stage: deploy
   only:
     - master
-    - develop
   needs: ["build:deb", "deploy:doc"]
+  before_script:
+    - apt update && apt install -y libzmq3-dev:amd64
   script:
-    - cargo install cargo-deb
-    - cargo deb
-    - cargo doc
+    # - cargo install cargo-deb
+    # - cargo deb
+    # - cargo doc
     - mkdir -p public
     - cp -r target/doc/* public/
     - cp -r target/debian/*.deb public/requestd.deb
