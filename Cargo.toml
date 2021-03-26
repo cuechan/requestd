@@ -1,6 +1,6 @@
 [package]
 name = "requestd"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Paul Maruhn <paulmaruhn@posteo.de>"]
 edition = "2018"
 homepage = "https://gitlab.com/freifunk-luebeck/requestd"
