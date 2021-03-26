@@ -1,8 +1,6 @@
 ![pipeline status](https://gitlab.com/cuechan/requestd/badges/master/pipeline.svg)
-
-[Docs](https://cuechan.gitlab.io/requestd/requestd/)
-
-[latest .deb](https://cuechan.gitlab.io/requestd/requestd.deb)
+[![docs](https://img.shields.io/badge/Docs-here-blue)](https://cuechan.gitlab.io/requestd/requestd/)
+[![latest .deb](https://img.shields.io/badge/Debian-requestd.deb-%23CE0056)](https://cuechan.gitlab.io/requestd/requestd.deb)
 
 Building
 ========
