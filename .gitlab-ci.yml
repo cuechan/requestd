@@ -3,9 +3,6 @@ image: rustlang/rust:nightly-buster
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
 
-cache:
-  paths:
-    - target
 
 stages:
   - build
@@ -20,6 +17,8 @@ build:build:
   stage: build
   cache:
     key: debug
+    paths:
+    - target/debug
   script:
     - cargo update
     - cargo build
@@ -29,6 +28,8 @@ build:deb:
   stage: build
   cache:
     key: release
+    paths:
+    - target/debug
   script:
     - cargo install cargo-deb
     - cargo deb
@@ -39,6 +40,10 @@ build:deb:
 
 build:doc:
   stage: build
+  cache:
+    key: debug
+    paths:
+      - target/debug
   script:
     - cargo update
     - cargo doc
@@ -52,12 +57,18 @@ test:test:
   needs: ["build:build"]
   cache:
     key: debug
+    paths:
+    - target
   script:
     - cargo test
 
 test:deb:
   stage: test
   needs: ["build:deb"]
+  cache:
+    key: release
+    paths:
+    - target/release
   script:
     - apt update && apt install -y python3-prometheus-client
     - dpkg -i target/debian/*.deb
