@@ -49,7 +49,7 @@ build:doc:
 
 test:test:
   stage: test
-  needs: [build:build]
+  needs: ["build:build"]
   cache:
     key: debug
   script:
@@ -57,7 +57,7 @@ test:test:
 
 test:deb:
   stage: test
-  needs: [build:deb]
+  needs: ["build:deb"]
   script:
     - dpkg -i target/debian/*.deb
     - "[ -e /etc/requestd.yml ]"
