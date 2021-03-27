@@ -59,6 +59,7 @@ test:deb:
   stage: test
   needs: ["build:deb"]
   script:
+    - apt update && apt install -y python3-prometheus-client
     - dpkg -i target/debian/*.deb
     - "[ -e /etc/requestd.yml ]"
     - requestd --help >> /dev/null
@@ -69,7 +70,7 @@ pages:
   stage: deploy
   only:
     - master
-  needs: ["build:deb", "build:doc"]
+  needs: ["build:deb", "build:doc", "test:test", "test:deb"]
   before_script:
     - apt update && apt install -y libzmq3-dev:amd64
   script:
