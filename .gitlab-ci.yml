@@ -18,17 +18,23 @@ before_script:
 
 build:build:
   stage: build
+  cache:
+    key: debug
   script:
     - cargo update
     - cargo build
 
 test:test:
   stage: test
+  cache:
+    key: debug
   script:
     - cargo test
 
 build:deb:
   stage: build
+  cache:
+    key: release
   script:
     - cargo install cargo-deb
     - cargo deb
