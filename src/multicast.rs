@@ -151,9 +151,7 @@ pub enum Error {}
 #[derive(Debug, Clone)]
 pub struct ResponddResponse {
 	pub timestamp: Timestamp,
-	/// remote address
 	pub remote: SocketAddr,
-	/// the data
 	pub response: Value,
 }
 

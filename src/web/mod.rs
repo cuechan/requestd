@@ -1,6 +1,6 @@
 mod endpoints;
 
-use crate::collector::{Collector, Event};
+use crate::collector::{Collector, Event, EventEvent};
 use crate::nodedb::{self, NodeDb, NodeStatus};
 use crate::CONFIG;
 use actix_web::{
@@ -27,6 +27,7 @@ use std::sync::{Arc, Mutex};
 use std::{thread, time};
 use tera;
 use crate::statistics;
+use crate::{DEFAULT_EVENT_HISTORY_LIMIT};
 
 const TEMPLATES: &[(&str, &str)] = &[
 	("index", include_str!("../../templates/index.html")),
@@ -145,8 +146,10 @@ fn index(state: State<'_, AppState>) -> Result<Html<String>, tera::Error> {
 		.filter(|n| n.status == NodeStatus::Down)
 		.count();
 
-	let mut events = state_.collector.get_event_history().clone();
-	events.reverse();
+	let mut events = state_.db.get_events_of_type(
+		DEFAULT_EVENT_HISTORY_LIMIT,
+		&[EventEvent::NewNode, EventEvent::NodeOffline, EventEvent::NodeOnlineAfterOffline, EventEvent::RemoveNode]
+	).clone();
 
 	let data = json!({
 		"nodes_online": nodes_online,

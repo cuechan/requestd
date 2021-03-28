@@ -29,6 +29,7 @@ use std::sync::{Arc, Mutex};
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
 use crate::NodeId;
+use crate::{DEFAULT_EVENT_HISTORY_LIMIT};
 
 #[derive(Clone)]
 pub struct Collector {
@@ -161,7 +162,7 @@ impl Collector {
 	}
 
 	pub fn get_event_history(&self) -> Vec<Event> {
-		self.nodedb.get_all_events().clone()
+		self.nodedb.get_all_events(DEFAULT_EVENT_HISTORY_LIMIT).clone()
 	}
 
 	/// searches the database for offline nodes and trigger events

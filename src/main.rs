@@ -44,6 +44,7 @@ use serde_json::json;
 pub const APPNAME: &str = "ffhl-collector";
 pub const TABLE: &str = "nodes";
 pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/requestd.yml", "./config.yml"];
+pub const DEFAULT_EVENT_HISTORY_LIMIT: usize = 120;
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;

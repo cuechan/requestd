@@ -1,6 +1,6 @@
 // SQL only allowed here!!!
 
-use crate::collector::Event;
+use crate::collector::{Event, EventEvent};
 use crate::NodeId;
 use crate::NodeResponse;
 use crate::CONFIG;
@@ -172,11 +172,11 @@ impl NodeDb {
 			.unwrap()
 	}
 
-	pub fn get_all_events(&self) -> Vec<Event> {
+	pub fn get_all_events(&self, limit: usize) -> Vec<Event> {
 		let db = self.db.lock().unwrap();
-		let mut stmt = db.prepare("SELECT * FROM events ORDER BY timestamp").unwrap();
+		let mut stmt = db.prepare("SELECT * FROM events ORDER BY timestamp DESC LIMIT $1").unwrap();
 
-		stmt.query_map(NO_PARAMS, |row| {
+		stmt.query_map(params![limit as isize], |row| {
 			Ok(Event {
 				event: row.get("event").unwrap(),
 				timestamp: row.get("timestamp").unwrap(),
@@ -187,6 +187,28 @@ impl NodeDb {
 			.unwrap()
 			.map(|n| n.unwrap())
 			.collect()
+	}
+
+	pub fn get_events_of_type(&self, limit: usize, types: &[EventEvent]) -> Vec<Event> {
+		let db = self.db.lock().unwrap();
+
+		let pred: Vec<String> = types.to_vec().iter().map(|t| format!("event == \"{}\"", t)).collect();
+		let where_clause = pred.join(" OR ");
+		let mut stmt = db
+			.prepare(&format!("SELECT * FROM events WHERE {} ORDER BY timestamp DESC LIMIT $1", where_clause))
+			.unwrap();
+
+		stmt.query_map(params![limit as isize], |row| {
+			Ok(Event {
+				event: row.get("event").unwrap(),
+				timestamp: row.get("timestamp").unwrap(),
+				nodeid: row.get("nodeid").unwrap(),
+				trigger: String::new(),
+			})
+		})
+		.unwrap()
+		.map(|n| n.unwrap())
+		.collect()
 	}
 }
 
@@ -378,7 +400,7 @@ fn event_create_and_read() {
 	let e = Event::new(EventEvent::NewNode, &n.nodeid);
 	db.insert_event(&e);
 
-	let events = db.get_all_events();
+	let events = db.get_all_events(200);
 	assert_eq!(events.len(), 1);
 	assert_eq!(events[0], e);
 }
