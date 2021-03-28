@@ -20,7 +20,6 @@ build:build:
     paths:
     - target/debug
   script:
-    - cargo update
     - cargo build
 
 
@@ -45,7 +44,6 @@ build:doc:
     paths:
       - target/debug
   script:
-    - cargo update
     - cargo doc
   artifacts:
     paths:
