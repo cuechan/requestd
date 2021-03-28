@@ -88,7 +88,7 @@ pages:
     # - cargo doc
     - mkdir -p public
     - cp -r target/doc/* public/
-    - cp -r target/debian/*.deb public/requestd.deb
+    - cp -vr target/debian/*.deb public/requestd.deb
   artifacts:
     paths:
       - public
