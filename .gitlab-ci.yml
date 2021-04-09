@@ -15,6 +15,7 @@ before_script:
 
 build:build:
   stage: build
+  tags: ['kadse']
   cache:
     key: debug
     paths:
