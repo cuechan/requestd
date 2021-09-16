@@ -8,34 +8,25 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::process;
-// use std::fs::File;
 use std::path;
-
-
-const EVENTS_HISTORY_SIZE: isize = 60*60*24*7;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-	pub database: DbConfig,
-	pub respondd: Respondd,
-	pub events: Events,
-	pub controlsocket: String,
-	pub concurrent_hooks: u64,
-	pub web_listen: String,
-	pub web_endpoints: Vec<WebEndpoint>,
+	pub requestd: Requestd,
+	pub web_bind: String,
 }
 
 impl Config {
-	pub fn load_config(matches: &clap::ArgMatches) -> Result<Self, yaml::Error> {
-		let path = matches
-			.value_of("config")
-			.or(get_first_file_found(DEFAULT_CONF_FILES))
-			.expect(&format!(
-				"no config found. expected in some of these locations: {:?}",
-				DEFAULT_CONF_FILES
-			));
+	pub fn load_config() -> Result<Self, yaml::Error> {
+		let path = match get_first_file_found(DEFAULT_CONF_FILES) {
+			Some(c) => c,
+			None => {
+				warn!("no config found. expected in some of these locations: {:?}", DEFAULT_CONF_FILES);
+				process::exit(1);
+			}
+		};
 
 		let mut config_str = String::new();
 		match File::open(path) {
@@ -50,11 +41,6 @@ impl Config {
 		}
 
 		let conf: Self = yaml::from_str(&config_str)?;
-
-		if conf.database.offline_after < conf.respondd.interval {
-			warn!("`database.offline_after` should be greater than `respondd.interval`");
-		}
-
 		Ok(conf)
 	}
 }
@@ -72,60 +58,32 @@ fn get_first_file_found<'a>(files: &[&'a str]) -> Option<&'a str> {
 impl Default for Config {
 	fn default() -> Self {
 		Self {
-			database: DbConfig::default(),
-			respondd: Respondd::default(),
-			events: Events::default(),
-			controlsocket: "/tmp/requestd.sock".to_string(),
-			concurrent_hooks: 4,
-			web_listen: "[::]:21001".to_string(),
-			web_endpoints: vec![],
+			requestd: Requestd::default(),
+			web_bind: "[::]:21001".to_string(),
 		}
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct DbConfig {
-	/// location of the database file
-	pub dbfile: String,
-	/// number of seconds without a response after a node is considered offline
-	pub offline_after: u64,
-	/// remove nodes form database after x seconds
-	pub remove_after: u64,
-	/// check database for offline nodes every x seconds
-	pub evaluate_every: u64,
-	/// save events occured in last x seconds
-	pub event_history_size: isize
-}
-
-impl Default for DbConfig {
-	fn default() -> Self {
-		Self {
-			dbfile: "./nodes.db".to_string(),
-			offline_after: 300,
-			remove_after: 2592000,
-			evaluate_every: 15,
-			event_history_size: EVENTS_HISTORY_SIZE,
-		}
-	}
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct Respondd {
+pub struct Requestd {
 	pub interface: String,
-	pub timeout: u64,
 	pub interval: u64,
 	pub multicast_address: String,
 	pub categories: Vec<String>,
+	pub clean_interval: u64,
+	pub retention: u64,
 }
 
-impl Default for Respondd {
+impl Default for Requestd {
 	fn default() -> Self {
 		Self {
 			interface: "bat0".to_owned(),
-			timeout: 5,
-			interval: 15,
+			interval: 60,
+			// retention: 60*24*72, // retention of 3 days
+			retention: 10, // retention of 3 days
+			clean_interval: 10, // check for invalid responses every 2 minutes
 			multicast_address: "ff05::2:1001".to_string(),
 			categories: vec![
 				"nodeinfo".to_string(),
@@ -136,25 +94,6 @@ impl Default for Respondd {
 	}
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Events {
-	pub new_node: Vec<Event>,
-	pub node_offline: Vec<Event>,
-	pub node_update: Vec<Event>,
-	pub online_after_offline: Vec<Event>,
-}
-
-impl Default for Events {
-	fn default() -> Self {
-		Self {
-			new_node: vec![],
-			node_offline: vec![],
-			node_update: vec![],
-			online_after_offline: vec![],
-		}
-	}
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -3,7 +3,9 @@
 /.vscode
 
 /collector.toml
-config*.yml
+/requestd.yml
+/requestd/requestd.yml
+/config_local.yml
 *.db
 *.bk
 reference_files

@@ -1,6 +1,6 @@
 # requestd
 
-[![pipeline status](https://gitlab.com/cuechan/requestd/badges/master/pipeline.svg)](https://gitlab.com/cuechan/requestd/-/commits/master) 
+[![pipeline status](https://gitlab.com/cuechan/requestd/badges/master/pipeline.svg)](https://gitlab.com/cuechan/requestd/-/commits/master)
 [![docs](https://img.shields.io/badge/Docs-here-blue)](https://cuechan.gitlab.io/requestd/requestd/)
 [![latest .deb](https://img.shields.io/badge/Debian-requestd.deb-%23CE0056)](https://cuechan.gitlab.io/requestd/requestd.deb)
 
@@ -8,7 +8,7 @@
 Building
 ========
 
-`sudo apt install libzmq3-dev libsqlite3-dev`
+`sudo apt install libzmq3-dev libsqlite3-dev git automake pkg-config libssl-dev libjq-dev libonig-dev libtool`
 
 You need rust nightly: (assuming you have rust installed via [rustup](https://rustup.rs/))
 ```
@@ -61,7 +61,7 @@ https://wiki.luebeck.freifunk.net/docs/infrastruktur/gallifrey-gluon01/
 
 ```
 ssh root@node.ffhl
-root@node:/# echo "rule 'MULTICAST_OUT -p IPv6 --ip6-protocol udp --ip6-destination-port 1001 --ip6-dst ff02::2:1001 -j RETURN'
-> rule 'MULTICAST_OUT -p IPv6 --ip6-protocol udp --ip6-destination-port 1001 --ip6-dst ff05::2:1001 -j RETURN'" > /lib/gluon/ebtables/110-mcast-allow-respondd
-root@node:/# /etc/init.d/gluon-ebtables restart
+echo "rule 'MULTICAST_OUT -p IPv6 --ip6-protocol udp --ip6-destination-port 1001 --ip6-dst ff02::2:1001 -j RETURN'" > /lib/gluon/ebtables/110-mcast-allow-respondd
+echo "rule 'MULTICAST_OUT -p IPv6 --ip6-protocol udp --ip6-destination-port 1001 --ip6-dst ff05::2:1001 -j RETURN'" > /lib/gluon/ebtables/110-mcast-allow-respondd
+/etc/init.d/gluon-ebtables restart
 ```

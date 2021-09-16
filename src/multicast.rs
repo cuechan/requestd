@@ -1,4 +1,3 @@
-use crate::metrics;
 use crate::Timestamp;
 use chrono::Utc;
 use crossbeam::channel::{self, Receiver, Sender};
@@ -15,6 +14,9 @@ use std::net::{SocketAddr, SocketAddrV6};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use std::io;
+use std::ffi::CString;
+use std::mem;
 
 /// wrapper for the socket.
 ///
@@ -35,11 +37,13 @@ impl RequesterService {
 	/// starts the respondd requester
 	/// this is non-blocking and spawns it's own thread
 	pub fn new(iface: &str) -> Self {
-		let iface_n = if_to_index(&iface).expect(&format!("no such interface: {}", iface));
+		trace!("getting interface {:?}", iface);
+		let iface_n = if_to_index(&iface).expect(&format!("no such interface: \"{}\"", iface));
+		// let iface_n = if_to_index("").unwrap();
 
 		let (tx, rx) = channel::unbounded::<ResponddResponse>();
 		let socket = Arc::new(Mutex::new({
-			let s: Socket = Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp())).unwrap();
+			let s: Socket = Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP)).unwrap();
 			s.set_nonblocking(true).unwrap();
 			s.bind(&SockAddr::from("[::]:16000".parse::<SocketAddrV6>().unwrap()))
 				.unwrap();
@@ -67,8 +71,6 @@ impl RequesterService {
 
 		let ref socket = self.socket.lock().unwrap();
 
-		metrics::TOTAL_REQUESTS.inc();
-
 		if let Err(e) = socket.send_to(format!("GET {}", what.join(" ")).as_bytes(), &SockAddr::from(dest)) {
 			error!("can't send multicast data to {}: {}", dest, e);
 			info!("is there a route configured? see README.md");
@@ -95,7 +97,7 @@ impl RequesterService {
 /// request data from respondd
 fn receiver_loop(socket: SharedSocket, tx: Sender<ResponddResponse>) {
 	loop {
-		let mut data = [0; 65536];
+		let mut data = Vec::from([mem::MaybeUninit::new(0); 65535]);
 		let recv_result;
 
 		// use extra scope so the lock gets dropped after we are done receiving
@@ -114,9 +116,11 @@ fn receiver_loop(socket: SharedSocket, tx: Sender<ResponddResponse>) {
 			continue;
 		}
 
-		metrics::TOTAL_RESPONSES.inc();
-
 		let (bytes_read, remote) = recv_result.unwrap();
+		trace!("successfully received {} bytes", bytes_read);
+		let data = unsafe { mem::transmute::<_, Vec<u8>>(data)};
+		trace!("successfully received {} transmuted bytes", data.len());
+
 		let mut response = String::new();
 		DeflateDecoder::new(&data[..bytes_read])
 			.read_to_string(&mut response)
@@ -137,7 +141,7 @@ fn receiver_loop(socket: SharedSocket, tx: Sender<ResponddResponse>) {
 
 		let resp = ResponddResponse {
 			timestamp: Utc::now(),
-			remote: remote.as_std().expect("cant convert to `socket2::SockAddr`"),
+			remote: remote.as_socket().expect("cant convert to `socket2::SockAddr`"),
 			response: json_,
 		};
 
@@ -156,11 +160,16 @@ pub struct ResponddResponse {
 }
 
 pub fn if_to_index(interface: &str) -> Option<u32> {
-	let i: u32 = unsafe { libc::if_nametoindex(interface.as_ptr() as *const i8).into() };
+	// let i = unsafe { libc::if_nametoindex(interface.as_ptr() as *const libc::c_char).into() };
+	let i = unsafe {
+		let iface = CString::new(interface).unwrap();
+		libc::if_nametoindex(iface.as_ptr())
+	};
 
 	trace!("iface index {:#?}", i);
 
 	if i <= 0 {
+		error!("{:#?}", io::Error::last_os_error());
 		return None;
 	}
 
