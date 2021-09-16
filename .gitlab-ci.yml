@@ -29,7 +29,7 @@ build:deb:
   cache:
     key: release
     paths:
-    - target/debug
+    - target/debian
   script:
     - cargo install cargo-deb
     - cargo deb
@@ -40,10 +40,6 @@ build:deb:
 
 build:doc:
   stage: build
-  cache:
-    key: debug
-    paths:
-      - target/debug
   script:
     - cargo doc
   artifacts:
@@ -53,15 +49,14 @@ build:doc:
 
 test:test:
   stage: test
-  needs: ["build:build"]
   cache:
     key: debug
     paths:
-    - target
+    - target/debug
   script:
     - cargo test
 
-test:deb:
+test:deb:requestd:
   stage: test
   needs: ["build:deb"]
   cache:
@@ -69,10 +64,11 @@ test:deb:
     paths:
     - target/release
   script:
-    - apt update && apt install -y python3-prometheus-client
-    - dpkg -i target/debian/*.deb
+    - cp -v target/debian/requestd*.deb ./requestd.deb
+    - dpkg -i requestd.deb
     - "[ -e /etc/requestd.yml ]"
-    - requestd --help >> /dev/null
+    - requestd --help
+    - requestd config -d
 
 
 
@@ -80,7 +76,7 @@ pages:
   stage: deploy
   only:
     - master
-  needs: ["build:deb", "build:doc", "test:test", "test:deb"]
+  needs: ["build:deb", "test:test", "test:deb:requestd"]
   before_script:
     - apt update && apt install -y libzmq3-dev:amd64
   script:

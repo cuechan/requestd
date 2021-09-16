@@ -2,49 +2,30 @@
 
 pub mod collector;
 pub mod config;
-pub mod controlsocket;
-pub mod model;
-pub mod monitor;
 pub mod multicast;
-pub mod output;
-mod statistics;
-mod respondd;
 pub mod web;
 
 use chrono::{DateTime, Utc};
 use clap;
-use collector::nodedb;
 use collector::Collector;
 use config::Config;
 use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
-use monitor::metrics;
-use nodedb::Node;
-use nodedb::NodeDb;
 use pretty_env_logger;
-use rusqlite as sqlite;
-use rusqlite::NO_PARAMS;
+use rocket;
 use serde_json as json;
 use serde_yaml as yaml;
-use std::fs::File;
-use std::io;
+use serde::{Serialize, Deserialize};
 use std::net::IpAddr;
-use std::process;
 use std::process::exit;
 use std::thread;
 use std::time::Duration;
-use rocket::{self, get, routes};
-use rocket_contrib::templates::Template;
-use std::collections::HashMap;
-use std::time;
-use serde_json::json;
+use std::sync::{Mutex, Arc};
 
 
-pub const APPNAME: &str = "ffhl-collector";
-pub const TABLE: &str = "nodes";
-pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/requestd.yml", "./config.yml"];
-pub const DEFAULT_EVENT_HISTORY_LIMIT: usize = 120;
+pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/requestd.yml", "./requestd.yml"];
+
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
@@ -52,75 +33,87 @@ pub type NodeId = String;
 pub type Mac = String;
 
 lazy_static! {
-	pub static ref ARGS: clap::ArgMatches<'static> = clap_app().get_matches();
 	pub static ref CONFIG: Config = {
-		config::Config::load_config(&ARGS)
+		config::Config::load_config()
 			.map_err(|e| {
-				error!("loading config: {}", e);
+				println!("loading config: {}", e);
 				exit(1);
 			})
 			.unwrap()
 	};
 }
 
-
 fn main() {
+	let args = clap::App::new(env!("CARGO_BIN_NAME"))
+		.author(env!("CARGO_PKG_AUTHORS"))
+		.about(env!("CARGO_PKG_DESCRIPTION"))
+		.version(env!("CARGO_PKG_VERSION"))
+		.subcommand(clap::SubCommand::with_name("config")
+			.about("print config")
+			.arg(clap::Arg::with_name("default")
+				.long("default")
+				.short("d")
+				.help("print the default configuration")
+			)
+		).get_matches();
+
 	pretty_env_logger::init();
 
-	trace!("config: \n{}", yaml::to_string(&*CONFIG).unwrap());
-
-	match ARGS.subcommand() {
-		("ls-nodes", m) => {
-			cmd_ls_nodes(m.unwrap().clone());
-		}
-		("collect", _m) => {
-			cmd_collect();
-		}
-		("foo", m) => {
-			web_test(m.unwrap())
-		}
-		_ => {
-			error!("not a valid Command. Try --help");
-			process::exit(1);
-		}
+	match args.subcommand() {
+		("config", Some(args)) => cmd_config(args),
+		_ => start_collecting()
 	}
 }
 
-fn web_test(args: &clap::ArgMatches) {
-	let db = NodeDb::new(&CONFIG.database.dbfile);
+
+
+fn cmd_config(args: &clap::ArgMatches) {
+	if args.is_present("default") {
+		println!("{}", yaml::to_string(&Config::default()).unwrap());
+	}
+	else {
+		println!("{}", yaml::to_string(&CONFIG.clone()).unwrap());
+	}
 }
 
+
+
+
+
+
 // TODO: this needs a bit more/clearer structure
-fn cmd_collect() {
-	monitor::start_exporter();
-
-	let requester = multicast::RequesterService::new(&CONFIG.respondd.interface);
+fn start_collecting() {
+	let requester = multicast::RequesterService::new(&CONFIG.requestd.interface);
 	let receiver = requester.get_receiver();
-	let db = NodeDb::new(&CONFIG.database.dbfile);
 
-	// start the controlsocket listener
-	let db_c = db.clone();
-	std::thread::spawn(move || {
-		controlsocket::start(db_c, &CONFIG.controlsocket);
+
+	let collector = Arc::new(Mutex::new(Collector::new(requester.clone())));
+	collector.lock().unwrap().start_collector();
+
+	// create a copy of the collecto to use it in another thread
+	let collector_c = collector.clone();
+	thread::spawn(move || {
+		loop {
+			collector_c.lock().unwrap().evaluate_database();
+			thread::sleep(Duration::from_secs(CONFIG.requestd.clean_interval));
+		}
 	});
 
 
-	let mut cllctr = Collector::new(db.clone(), requester.clone());
-	cllctr.start_collector();
-
-	let db_c = db.clone();
-	let cllctr_c = cllctr.clone();
+	let collector_c = collector.clone();
 	std::thread::spawn(move || {
-		web::main(db_c, cllctr_c);
+		web::main(collector_c);
 	});
 
+	debug!("starting requester");
 	thread::spawn(move || loop {
 		debug!("requesting new data");
-		requester.request(&CONFIG.respondd.multicast_address, &CONFIG.respondd.categories);
-
-		thread::sleep(Duration::from_secs(CONFIG.respondd.interval));
+		requester.request(&CONFIG.requestd.multicast_address, &CONFIG.requestd.categories);
+		thread::sleep(Duration::from_secs(CONFIG.requestd.interval));
 	});
 
+
+	trace!("start processing responses");
 	for node_response in &receiver {
 		// do some checks
 		if !node_response.response.is_object() {
@@ -135,26 +128,32 @@ fn cmd_collect() {
 			continue;
 		};
 
-		// debug!("Hello, {}", nodeid);
-
-		let noderes = NodeResponse {
+		let node_res = NodeResponse {
 			nodeid: nodeid.to_string(),
 			remote: node_response.remote.ip(),
 			timestamp: node_response.timestamp,
 			data: node_response.response,
 		};
 
-		cllctr.receive(noderes);
+		collector.lock().unwrap().receive(node_res);
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodeResponse {
 	nodeid: NodeId,
 	remote: IpAddr,
 	timestamp: Timestamp,
 	data: NodeData,
 }
+
+impl NodeResponse {
+	fn age(&self) -> u64 {
+		(Utc::now() - self.timestamp).num_seconds() as u64
+	}
+}
+
+
 
 fn get_nodeid_from_response_data(data: &json::Value) -> Option<NodeId> {
 	data.as_object()
@@ -166,38 +165,6 @@ fn get_nodeid_from_response_data(data: &json::Value) -> Option<NodeId> {
 		.and_then(|n| Some(n.to_string())) as Option<NodeId>
 }
 
-fn cmd_ls_nodes(_matches: clap::ArgMatches) {
-	let db = sqlite::Connection::open(&CONFIG.database.dbfile).unwrap();
-	let mut stmt = db.prepare("SELECT * FROM nodes").unwrap();
-	let mut rows = stmt.query(NO_PARAMS).unwrap();
-
-	let mut nodes = vec![];
-
-	while let Some(row) = rows.next().unwrap() {
-		nodes.push(Node::from_row(row));
-	}
-
-	json::to_writer_pretty(io::stdout(), &nodes).unwrap();
-}
-
-fn clap_app<'a, 'b>() -> clap::App<'a, 'b> {
-	clap::App::new(env!("CARGO_PKG_NAME"))
-		.version(env!("CARGO_PKG_VERSION"))
-		.arg(
-			clap::Arg::with_name("config")
-				.short("c")
-				.long("config")
-				.help("custom config file")
-				.takes_value(true)
-				.validator(|x| match File::open(x) {
-					Err(e) => Err(e.to_string()),
-					Ok(_) => Ok(()),
-				}),
-		)
-		.subcommand(clap::SubCommand::with_name("collect").about("collect and save data"))
-		.subcommand(clap::SubCommand::with_name("ls-nodes").about("list all nodes"))
-		.subcommand(clap::SubCommand::with_name("foo").about("do foo things"))
-}
 
 #[derive(Debug)]
 pub enum Error {}

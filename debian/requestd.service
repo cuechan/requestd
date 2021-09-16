@@ -3,8 +3,8 @@ Description=respondd multicast collector
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/requestd -c /etc/requestd.yml collect
-Restart=on-abort
+ExecStart=/usr/bin/requestd
+# Restart=on-abort
 
 [Install]
 WantedBy=multi-user.target
