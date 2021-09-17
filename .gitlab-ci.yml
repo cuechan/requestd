@@ -74,7 +74,7 @@ pages:
   stage: deploy
   only:
     - master
-  needs: ["build:deb", "test:test", "test:deb:requestd"]
+  needs: ["build:deb", "test:test", "test:deb"]
   before_script:
     - apt update && apt install -y libzmq3-dev:amd64
   script:
