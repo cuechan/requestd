@@ -23,7 +23,6 @@ build:build:
   script:
     - cargo build
 
-
 build:deb:
   stage: build
   cache:
@@ -46,7 +45,6 @@ build:doc:
     paths:
       - target/doc
 
-
 test:test:
   stage: test
   cache:
@@ -56,7 +54,8 @@ test:test:
   script:
     - cargo test
 
-test:deb:requestd:
+
+test:deb:
   stage: test
   needs: ["build:deb"]
   cache:
@@ -69,7 +68,6 @@ test:deb:requestd:
     - "[ -e /etc/requestd.yml ]"
     - requestd --help
     - requestd config -d
-
 
 
 pages:
