@@ -15,7 +15,6 @@ before_script:
 
 build:build:
   stage: build
-  tags: ['kadse']
   cache:
     key: debug
     paths:
@@ -78,9 +77,6 @@ pages:
   before_script:
     - apt update && apt install -y libzmq3-dev:amd64
   script:
-    # - cargo install cargo-deb
-    # - cargo deb
-    # - cargo doc
     - mkdir -p public
     - cp -r target/doc/* public/
     - cp -vr target/debian/*.deb public/requestd.deb
