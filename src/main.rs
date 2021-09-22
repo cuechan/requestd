@@ -4,6 +4,7 @@ pub mod collector;
 pub mod config;
 pub mod multicast;
 pub mod web;
+pub mod mqtt;
 
 use chrono::{DateTime, Utc};
 use clap;
@@ -23,14 +24,13 @@ use std::thread;
 use std::time::Duration;
 use std::sync::{Mutex, Arc};
 
-
 pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/requestd.yml", "./requestd.yml"];
-
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
 pub type NodeId = String;
 pub type Mac = String;
+
 
 lazy_static! {
 	pub static ref CONFIG: Config = {
@@ -100,10 +100,20 @@ fn start_collecting() {
 	});
 
 
-	let collector_c = collector.clone();
-	std::thread::spawn(move || {
-		web::main(collector_c);
-	});
+	if CONFIG.web.is_some() {
+		let collector_c = collector.clone();
+		std::thread::spawn(move || {
+			web::main(collector_c);
+		});
+	}
+	if CONFIG.mqtt.is_some() {
+		let collector_c = collector.clone();
+		let mqtt = mqtt::Mqtt::new(collector_c);
+		std::thread::spawn(move || {
+			mqtt.start();
+		});
+	}
+
 
 	debug!("starting requester");
 	thread::spawn(move || loop {
@@ -174,3 +184,10 @@ pub enum Error {}
 // 		Error::Influx(e)
 // 	}
 // }
+
+
+pub trait Endpoint {
+	fn new(c: Arc<Mutex<Collector>>) -> Self;
+
+	fn start(self) -> !;
+}

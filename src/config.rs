@@ -9,13 +9,15 @@ use std::fs::File;
 use std::io::Read;
 use std::process;
 use std::path;
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
 	pub requestd: Requestd,
-	pub web_bind: String,
+	pub web: Option<WebEndpoint>,
+	pub mqtt: Option<MqttEndpoint>,
 }
 
 impl Config {
@@ -59,7 +61,8 @@ impl Default for Config {
 	fn default() -> Self {
 		Self {
 			requestd: Requestd::default(),
-			web_bind: "[::]:21001".to_string(),
+			web: Some(WebEndpoint::default()),
+			mqtt: None,
 		}
 	}
 }
@@ -105,7 +108,29 @@ pub struct Event {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct WebEndpoint {
-	pub path: String,
-	pub exec: String,
-	// pub timeout: u64,
+	pub listen: SocketAddr,
+}
+
+impl Default for WebEndpoint {
+	fn default() -> Self {
+		Self {
+			listen: SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), 21001)
+		}
+	}
+}
+
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MqttEndpoint {
+	pub broker: String,
+	pub topic: String,
+}
+
+impl Default for MqttEndpoint {
+	fn default() -> Self {
+		Self {
+			broker: "localhost:1883".to_string(),
+			topic: "requestd/responses".to_string(),
+		}
+	}
 }

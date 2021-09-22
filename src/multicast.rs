@@ -117,9 +117,9 @@ fn receiver_loop(socket: SharedSocket, tx: Sender<ResponddResponse>) {
 		}
 
 		let (bytes_read, remote) = recv_result.unwrap();
-		trace!("successfully received {} bytes", bytes_read);
+		// trace!("successfully received {} bytes", bytes_read);
 		let data = unsafe { mem::transmute::<_, Vec<u8>>(data)};
-		trace!("successfully received {} transmuted bytes", data.len());
+		// trace!("successfully received {} transmuted bytes", data.len());
 
 		let mut response = String::new();
 		DeflateDecoder::new(&data[..bytes_read])
