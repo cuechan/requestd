@@ -67,7 +67,7 @@ fn rocket_config() -> Config {
 	use std::net::SocketAddr;
 	use crate::CONFIG;
 
-	let listen: SocketAddr = CONFIG.web_bind.parse().unwrap();
+	let listen: SocketAddr = CONFIG.web.clone().unwrap().listen;
 	Config::build(Environment::Production)
 		.address(listen.ip().to_string())
 		.port(listen.port())

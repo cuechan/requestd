@@ -10,6 +10,7 @@ use serde_json as json;
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::io;
+use crossbeam::channel as crossbeam;
 
 
 #[derive(Clone)]
@@ -17,6 +18,8 @@ pub struct Collector {
 	received_counter: usize,
 	requester: RequesterService,
 	responses: HashMap<NodeId, NodeResponse>,
+	events_sender: crossbeam::Sender<NodeResponse>,
+	events_receiver: crossbeam::Receiver<NodeResponse>,
 }
 
 
@@ -24,11 +27,13 @@ pub struct Collector {
 impl Collector {
 	/// Starts a collector thread that also checks the database for offline nodes
 	pub fn new(requester: RequesterService) -> Self {
-
+		let (tx, rx) = crossbeam::unbounded();
 		Self {
 			requester,
 			received_counter: 0,
 			responses: HashMap::new(),
+			events_sender: tx,
+			events_receiver: rx,
 		}
 	}
 
@@ -60,7 +65,8 @@ impl Collector {
 
 	pub fn receive(&mut self, response: NodeResponse) {
 		// *self.received_counter.lock().unwrap() += 1;
-		self.responses.insert(response.nodeid.clone(), response);
+		self.responses.insert(response.nodeid.clone(), response.clone());
+		self.events_sender.try_send(response);
 	}
 
 	pub fn all_responses(&self) -> Vec<NodeResponse> {
@@ -71,7 +77,12 @@ impl Collector {
 	pub fn get_num_received(&self) -> usize {
 		self.received_counter
 	}
+
+	pub fn get_events_receiver(&self) -> crossbeam::Receiver<NodeResponse> {
+		self.events_receiver.clone()
+	}
 }
+
 
 #[derive(Debug)]
 pub enum EventError {

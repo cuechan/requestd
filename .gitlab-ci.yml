@@ -10,7 +10,7 @@ stages:
   - deploy
 
 before_script:
-  - apt update && apt install -y libzmq3-dev >> /dev/null
+  - apt update && apt install -y libzmq3-dev cmake >> /dev/null
 
 
 build:build:
