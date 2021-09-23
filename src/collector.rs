@@ -18,8 +18,7 @@ pub struct Collector {
 	received_counter: usize,
 	requester: RequesterService,
 	responses: HashMap<NodeId, NodeResponse>,
-	events_sender: crossbeam::Sender<NodeResponse>,
-	events_receiver: crossbeam::Receiver<NodeResponse>,
+	events_senders: Vec<crossbeam::Sender<NodeResponse>>,
 }
 
 
@@ -27,13 +26,11 @@ pub struct Collector {
 impl Collector {
 	/// Starts a collector thread that also checks the database for offline nodes
 	pub fn new(requester: RequesterService) -> Self {
-		let (tx, rx) = crossbeam::unbounded();
 		Self {
 			requester,
 			received_counter: 0,
 			responses: HashMap::new(),
-			events_sender: tx,
-			events_receiver: rx,
+			events_senders: vec![]
 		}
 	}
 
@@ -66,7 +63,14 @@ impl Collector {
 	pub fn receive(&mut self, response: NodeResponse) {
 		// *self.received_counter.lock().unwrap() += 1;
 		self.responses.insert(response.nodeid.clone(), response.clone());
-		self.events_sender.try_send(response);
+		self.notify_receivers(response);
+	}
+
+	fn notify_receivers(&self, msg: NodeResponse) {
+		// send data to all subscribed listeners
+		for sender in &self.events_senders {
+			sender.try_send(msg.clone());
+		}
 	}
 
 	pub fn all_responses(&self) -> Vec<NodeResponse> {
@@ -78,8 +82,10 @@ impl Collector {
 		self.received_counter
 	}
 
-	pub fn get_events_receiver(&self) -> crossbeam::Receiver<NodeResponse> {
-		self.events_receiver.clone()
+	pub fn get_events_receiver(&mut self) -> crossbeam::Receiver<NodeResponse> {
+		let (tx, rx) = crossbeam::unbounded();
+		self.events_senders.push(tx);
+		rx
 	}
 }
 
