@@ -57,10 +57,6 @@ test:test:
 test:deb:
   stage: test
   needs: ["build:deb"]
-  cache:
-    key: release
-    paths:
-    - target/release
   script:
     - cp -v target/debian/requestd*.deb ./requestd.deb
     - dpkg -i requestd.deb
