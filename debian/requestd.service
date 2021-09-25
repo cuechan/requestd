@@ -5,6 +5,7 @@ After=network.target
 [Service]
 ExecStart=/usr/bin/requestd
 # Restart=on-abort
+Environment=RUST_LOG=info
 
 [Install]
 WantedBy=multi-user.target
