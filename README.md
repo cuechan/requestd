@@ -20,6 +20,56 @@ Run
 
 `requestd --config assets/config.yaml`
 
+
+Endpoints
+=========
+
+You can configure different endpoints which distribute the respondd responses via different protocols. Currently there are 3 implemented protocols:
+
+- http
+- mqtt
+- [zmq pub/sub](https://zeromq.org/socket-api/#publish-subscribe-pattern)
+
+
+http
+----
+To enable the **http** endpoint add the following to your `requestd.yml`:
+
+```yaml
+web:
+  listen: "[::]:21001"
+```
+
+All node responses will be available at `http://localhost:21001/responses`
+
+
+
+mqtt
+----
+To enable the **mqtt** endpoint add the following to your `requestd.yml`:
+
+```yaml
+mqtt:
+  broker: localhost:1883
+  topic: ffhl
+```
+
+Mqtt authentication in currently not supported.
+
+
+zmq
+---
+To enable the **zmq** endpoint add the following to your `requestd.yml`:
+
+
+```yaml
+zmq:
+  bind_to: "tcp://*:21002"
+```
+
+You can now `SUB`scribe to this endpoint wiht another aplication. Remember that zmq pub/sub also uses topics. The topic used by requestd is `requestd`. For each message you need to call `zmq_recv()` twice. The first call will receive the topic, the second will receive the actual message.
+
+
 Help!
 =====
 
