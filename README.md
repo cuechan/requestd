@@ -67,7 +67,7 @@ zmq:
   bind_to: "tcp://*:21002"
 ```
 
-You can now `SUB`scribe to this endpoint wiht another aplication. Remember that zmq pub/sub also uses topics. The topic used by requestd is `requestd`. For each message you need to call `zmq_recv()` twice. The first call will receive the topic, the second will receive the actual message.
+You can now `SUB`scribe to this endpoint with another application. Remember that zmq pub/sub also uses topics. The topic used by requestd is `requestd`. For each message you need to call `zmq_recv()` twice. The first call will receive the topic, the second will receive the actual message.
 
 
 Help!
