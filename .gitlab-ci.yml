@@ -63,6 +63,7 @@ test:deb:bullseye:
   image: debian:bullseye-slim
   stage: test
   needs: ["build:deb"]
+  before_script: []
   script:
     - cp -v target/debian/requestd*.deb ./requestd.deb
     - dpkg -i requestd.deb
