@@ -17,7 +17,15 @@ cargo build
 Run
 ===
 
-`requestd --config assets/config.yaml`
+generate default config:
+```
+request config -d | tee requestd.yml
+```
+modify the generated config as you like. Then simply run requestd
+
+```
+requestd
+```
 
 
 Endpoints
