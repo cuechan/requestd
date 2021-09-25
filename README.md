@@ -8,12 +8,11 @@
 Building
 ========
 
-`sudo apt install libzmq3-dev libsqlite3-dev git automake pkg-config libssl-dev libjq-dev libonig-dev libtool cmake`
+```
+sudo apt install libzmq3-dev libsqlite3-dev git automake pkg-config libssl-dev libjq-dev libonig-dev libtool cmake
+cargo build
+```
 
-You need rust nightly: (assuming you have rust installed via [rustup](https://rustup.rs/))
-```
-rustup default nightly
-```
 
 Run
 ===
