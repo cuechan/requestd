@@ -13,7 +13,8 @@ before_script:
   - apt update && apt install -y libzmq3-dev cmake >> /dev/null
 
 
-build:build:
+build:stable:
+  image: "rust:bullseye"
   stage: build
   cache:
     key: debug
@@ -22,7 +23,19 @@ build:build:
   script:
     - cargo build
 
+build:nightly:
+  stage: build
+  cache:
+    key: debug
+    paths:
+    - target/debug
+  script:
+    - cargo build
+
+
 build:deb:
+  image: "rust:bullseye"
+  needs: [build:stable]
   stage: build
   cache:
     key: release
@@ -54,7 +67,8 @@ test:test:
     - cargo test
 
 
-test:deb:
+test:deb:bullseye:
+  image: debian:bullseye-slim
   stage: test
   needs: ["build:deb"]
   script:
