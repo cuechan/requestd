@@ -1,76 +1,63 @@
-use crate::collector::Collector;
 #[allow(unused_imports)]
-use log::{error, warn};
-use rocket;
-use rocket::{get, routes};
-use rocket::config::{Config, Environment};
-use rocket::response::content::Html;
-use rocket::State;
-use rocket_contrib::json::Json;
-use std;
-use std::sync::{Arc, Mutex};
-use std::process;
+use crate::collector::{self, Collector, ResponseBuffer};
+use crate::CONFIG;
+use crate::Endpoint;
 use crate::NodeResponse;
+use crossbeam::channel::Receiver;
+use log::{error, warn};
+use std;
+use std::net::SocketAddr;
+use std::process;
+use std::sync::{Arc, Mutex};
+use tiny_http::{Server, Response, Request, Header};
+use serde_json as json;
+use std::thread;
+
 
 const DATETIME_FORMAT: &str = "%F %T";
 
-
-pub struct AppState {
+pub struct Web {
 	collector: Arc<Mutex<Collector>>,
+	server: Server,
 }
 
 
-#[get("/")]
-fn index() -> Html<String> {
-	Html(include_str!("./index.html").to_string())
+fn handle_index(req: Request) {
+	let mut res = Response::from_string(include_str!("index.html"));
+	res.add_header(Header::from_bytes("Content-Type", "text/html").unwrap());
+
+	req.respond(res).unwrap();
 }
 
 
-#[get("/responses")]
-fn all_responses(state: State<'_, AppState>) -> Json<Vec<NodeResponse>> {
-	let collector = state.collector.lock().unwrap();
-	let nodes = collector.all_responses();
+fn handle_responses(req: Request, all_nodes: Vec<NodeResponse>) {
+	let mut res = Response::from_data(json::to_vec(&all_nodes).unwrap());
+	res.add_header(Header::from_bytes("Content-Type", "application/json").unwrap());
 
-	Json(nodes)
+	req.respond(res).unwrap();
 }
 
+impl Endpoint for Web {
+	fn new(c: Arc<Mutex<Collector>>) -> Self {
+		let server = Server::http(CONFIG.web.clone().unwrap().listen).unwrap();
 
-pub fn main(collector: Arc<Mutex<Collector>>) {
+		Self {
+			collector: c,
+			server: server,
+		}
+	}
 
-	let appstate = AppState {
-		collector: collector,
-	};
+	fn start(mut self) -> ! {
+		for req in self.server.incoming_requests() {
+			match req.url() {
+				"/responses" => {
+					let responses = self.collector.lock().unwrap().all_responses();
+					handle_responses(req, responses);
+				}
+				_ => handle_index(req),
+			}
+		};
 
-	let config = rocket_config();
-
-	let status = rocket::custom(config)
-		.mount("/", routes![
-			all_responses,
-			index,
-		])
-		.manage(appstate)
-		.launch();
-
-	error!("can't launch rocket");
-	error!("{}", status);
-	process::exit(1);
-}
-
-
-#[cfg(debug_assertions)]
-fn rocket_config() -> Config {
-	Config::build(Environment::Development).finalize().unwrap()
-}
-
-#[cfg(not(debug_assertions))]
-fn rocket_config() -> Config {
-	use std::net::SocketAddr;
-	use crate::CONFIG;
-
-	let listen: SocketAddr = CONFIG.web.clone().unwrap().listen;
-	Config::build(Environment::Production)
-		.address(listen.ip().to_string())
-		.port(listen.port())
-		.finalize()
-		.unwrap()
+		panic!("http endpoint loop returned. (this should not happen")
+	}
 }
