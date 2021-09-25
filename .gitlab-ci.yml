@@ -35,7 +35,7 @@ build:nightly:
 
 build:deb:
   image: "rust:bullseye"
-  needs: [build:stable]
+  needs: ["build:stable"]
   stage: build
   cache:
     key: release
