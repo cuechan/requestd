@@ -49,14 +49,6 @@ build:deb:
       - target/debian
 
 
-build:doc:
-  stage: build
-  script:
-    - cargo doc
-  artifacts:
-    paths:
-      - target/doc
-
 test:test:
   stage: test
   cache:
