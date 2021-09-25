@@ -15,7 +15,6 @@ use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use pretty_env_logger;
-use rocket;
 use serde_json as json;
 use serde_yaml as yaml;
 use serde::{Serialize, Deserialize};
@@ -27,6 +26,7 @@ use std::sync::{Mutex, Arc};
 use config::ConfigLoadingError;
 
 pub const DEFAULT_CONF_FILES: &[&str] = &["requestd.yml", "/etc/requestd.yml"];
+pub const RESPONSE_CLEANING_MAX: u64 = 10;
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
@@ -96,20 +96,12 @@ fn start_collecting() {
 	let collector = Arc::new(Mutex::new(Collector::new(requester.clone())));
 	collector.lock().unwrap().start_collector();
 
-	// create a copy of the collecto to use it in another thread
-	let collector_c = collector.clone();
-	thread::spawn(move || {
-		loop {
-			collector_c.lock().unwrap().evaluate_database();
-			thread::sleep(Duration::from_secs(CONFIG.requestd.clean_interval));
-		}
-	});
-
 
 	if CONFIG.web.is_some() {
 		let collector_c = collector.clone();
+		let web = web::Web::new(collector_c);
 		std::thread::spawn(move || {
-			web::main(collector_c);
+			web.start();
 		});
 	}
 	if CONFIG.mqtt.is_some() {

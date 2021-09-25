@@ -1,4 +1,3 @@
-use crate::DEFAULT_CONF_FILES;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use serde;
@@ -7,10 +6,8 @@ use serde_yaml as yaml;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Error as IoError};
-use std::process;
 use std::path;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
-use std::cmp::PartialEq;
 
 
 #[derive(Debug)]
