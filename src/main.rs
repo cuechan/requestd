@@ -2,9 +2,10 @@
 
 pub mod collector;
 pub mod config;
+pub mod mqtt;
 pub mod multicast;
 pub mod web;
-pub mod mqtt;
+pub mod zmq;
 
 use chrono::{DateTime, Utc};
 use clap;
@@ -116,6 +117,13 @@ fn start_collecting() {
 		let mqtt = mqtt::Mqtt::new(collector_c);
 		std::thread::spawn(move || {
 			mqtt.start();
+		});
+	}
+	if CONFIG.zmq.is_some() {
+		let collector_c = collector.clone();
+		let zmq = zmq::Zmq::new(collector_c);
+		std::thread::spawn(move || {
+			zmq.start();
 		});
 	}
 

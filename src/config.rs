@@ -41,6 +41,7 @@ pub struct Config {
 	pub requestd: Requestd,
 	pub web: Option<WebEndpoint>,
 	pub mqtt: Option<MqttEndpoint>,
+	pub zmq: Option<ZmqEndpoint>,
 }
 
 impl Config {
@@ -72,6 +73,7 @@ impl Default for Config {
 			requestd: Requestd::default(),
 			web: Some(WebEndpoint::default()),
 			mqtt: None,
+			zmq: Some(ZmqEndpoint::default()),
 		}
 	}
 }
@@ -140,6 +142,20 @@ impl Default for MqttEndpoint {
 		Self {
 			broker: "localhost:1883".to_string(),
 			topic: "requestd/responses".to_string(),
+		}
+	}
+}
+
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ZmqEndpoint {
+	pub bind_to: String,
+}
+
+impl Default for ZmqEndpoint {
+	fn default() -> Self {
+		Self {
+			bind_to: "tcp://[::]:21002".to_string(),
 		}
 	}
 }
