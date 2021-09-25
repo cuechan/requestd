@@ -6,10 +6,33 @@ use serde::{Deserialize, Serialize};
 use serde_yaml as yaml;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Error as IoError};
 use std::process;
 use std::path;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
+use std::cmp::PartialEq;
+
+
+#[derive(Debug)]
+pub enum ConfigLoadingError {
+	NoConfigFound,
+	Io(IoError),
+	Yaml(yaml::Error)
+}
+
+
+impl From<IoError> for ConfigLoadingError {
+	fn from(e: IoError) -> Self {
+		ConfigLoadingError::Io(e)
+	}
+}
+
+impl From<yaml::Error> for ConfigLoadingError {
+	fn from(e: yaml::Error) -> Self {
+		ConfigLoadingError::Yaml(e)
+	}
+}
+
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -21,40 +44,26 @@ pub struct Config {
 }
 
 impl Config {
-	pub fn load_config() -> Result<Self, yaml::Error> {
-		let path = match get_first_file_found(DEFAULT_CONF_FILES) {
-			Some(c) => c,
-			None => {
-				warn!("no config found. expected in some of these locations: {:?}", DEFAULT_CONF_FILES);
-				process::exit(1);
-			}
-		};
+	pub fn load_config(paths: &[&str]) -> Result<Self, ConfigLoadingError> {
+		let path = get_first_file_found(paths)?;
 
 		let mut config_str = String::new();
-		match File::open(path) {
-			Err(e) => {
-				eprintln!("no config file");
-				error!("{}: {}", e, path);
-				process::exit(1);
-			}
-			Ok(mut r) => {
-				r.read_to_string(&mut config_str).unwrap();
-			}
-		}
+		File::open(path)?.read_to_string(&mut config_str)?;
 
 		let conf: Self = yaml::from_str(&config_str)?;
+
 		Ok(conf)
 	}
 }
 
-fn get_first_file_found<'a>(files: &[&'a str]) -> Option<&'a str> {
+fn get_first_file_found<'a>(files: &[&'a str]) -> Result<&'a str, ConfigLoadingError> {
 	for file in files {
 		if path::Path::new(file).is_file() {
-			return Some(file);
+			return Ok(file);
 		}
 	}
 
-	None
+	Err(ConfigLoadingError::NoConfigFound)
 }
 
 impl Default for Config {
@@ -132,5 +141,15 @@ impl Default for MqttEndpoint {
 			broker: "localhost:1883".to_string(),
 			topic: "requestd/responses".to_string(),
 		}
+	}
+}
+
+
+
+#[test]
+fn loading_nonexisting_config() {
+	match Config::load_config(&[]) {
+		Err(ConfigLoadingError::NoConfigFound) => (),
+		_ => panic!()
 	}
 }

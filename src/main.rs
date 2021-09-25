@@ -19,12 +19,13 @@ use serde_json as json;
 use serde_yaml as yaml;
 use serde::{Serialize, Deserialize};
 use std::net::IpAddr;
-use std::process::exit;
+use std::process;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Mutex, Arc};
+use config::ConfigLoadingError;
 
-pub const DEFAULT_CONF_FILES: &[&str] = &["/etc/requestd.yml", "./requestd.yml"];
+pub const DEFAULT_CONF_FILES: &[&str] = &["requestd.yml", "/etc/requestd.yml"];
 
 pub type NodeData = json::Value;
 pub type Timestamp = DateTime<Utc>;
@@ -34,12 +35,16 @@ pub type Mac = String;
 
 lazy_static! {
 	pub static ref CONFIG: Config = {
-		config::Config::load_config()
-			.map_err(|e| {
-				println!("loading config: {}", e);
-				exit(1);
-			})
-			.unwrap()
+		config::Config::load_config(DEFAULT_CONF_FILES).map_err(|e| {
+			match e {
+				ConfigLoadingError::NoConfigFound => error!("no config found. First file in some of these locations will be loaded: {}", DEFAULT_CONF_FILES.join(", ")),
+				ConfigLoadingError::Io(e) => error!("error while loading config file: {}", e),
+				ConfigLoadingError::Yaml(e) => error!("error while parsing config: {}", e),
+			}
+
+			error!("generate a default config with '{} config -d'", env!("CARGO_BIN_NAME"));
+			process::exit(1);
+		}).unwrap()
 	};
 }
 
@@ -187,7 +192,10 @@ pub enum Error {}
 
 
 pub trait Endpoint {
+	/// create and initialize new endpoint
 	fn new(c: Arc<Mutex<Collector>>) -> Self;
 
+	/// start the Endpoint
+	/// This method must never return. It will be started in a seperate thread
 	fn start(self) -> !;
 }
