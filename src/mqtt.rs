@@ -31,6 +31,7 @@ impl Mqtt {
 		).is_ok()
 	}
 
+	#[allow(unused_must_use)]
 	fn flush_receiver(&self) {
 		while !self.events_receiver.is_empty() {
 			self.events_receiver.recv();

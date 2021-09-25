@@ -3,18 +3,12 @@ use crate::collector::{self, Collector, ResponseBuffer};
 use crate::CONFIG;
 use crate::Endpoint;
 use crate::NodeResponse;
-use crossbeam::channel::Receiver;
-use log::{error, warn};
 use std;
-use std::net::SocketAddr;
-use std::process;
 use std::sync::{Arc, Mutex};
 use tiny_http::{Server, Response, Request, Header};
 use serde_json as json;
-use std::thread;
 
 
-const DATETIME_FORMAT: &str = "%F %T";
 
 pub struct Web {
 	collector: Arc<Mutex<Collector>>,
@@ -47,7 +41,7 @@ impl Endpoint for Web {
 		}
 	}
 
-	fn start(mut self) -> ! {
+	fn start(self) -> ! {
 		for req in self.server.incoming_requests() {
 			match req.url() {
 				"/responses" => {
