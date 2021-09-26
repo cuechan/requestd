@@ -82,7 +82,6 @@ pages:
     - apt update && apt install -y libzmq3-dev:amd64
   script:
     - mkdir -p public
-    - cp -r target/doc/* public/
     - cp -vr target/debian/*.deb public/requestd.deb
   artifacts:
     paths:
