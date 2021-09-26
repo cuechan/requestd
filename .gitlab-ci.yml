@@ -65,6 +65,7 @@ test:deb:bullseye:
   needs: ["build:deb"]
   before_script: []
   script:
+    - apt update && apt install -y libbsd0 libmd0 libnorm1 libsodium23 libzmq5 libpgm-5.3-0 libpgm-5.3-0
     - cp -v target/debian/requestd*.deb ./requestd.deb
     - dpkg -i requestd.deb
     - "[ -e /etc/requestd.yml ]"
