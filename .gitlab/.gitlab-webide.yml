@@ -1,4 +1,4 @@
 
 terminal:
   image: debian:bullseye
-  script: sleep 30
+  script: sleep 60
