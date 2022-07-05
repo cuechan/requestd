@@ -152,7 +152,7 @@ pub struct ZmqEndpoint {
 impl Default for ZmqEndpoint {
 	fn default() -> Self {
 		Self {
-			bind_to: "tcp://[::]:21002".to_string(),
+			bind_to: "tcp://*:21002".to_string(),
 		}
 	}
 }
